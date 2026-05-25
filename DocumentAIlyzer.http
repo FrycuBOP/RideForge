@@ -1,0 +1,6 @@
+@DocumentAIlyzer_HostAddress = http://localhost:5239
+
+GET {{DocumentAIlyzer_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
