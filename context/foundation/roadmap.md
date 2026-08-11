@@ -29,7 +29,7 @@ RideForge generuje motocyklową trasę rekreacyjną z punktu startu i preferencj
 
 | ID    | Change ID                | Outcome (user can …)                                              | Prerequisites   | PRD refs                          | Status   |
 | ----- | ------------------------ | ---------------------------------------------------------------- | --------------- | --------------------------------- | -------- |
-| F-01  | mobile-backend-link      | (foundation) aplikacja Expo dogaduje się z backendem na Railway  | —               | FR-005                            | planning |
+| F-01  | mobile-backend-link      | (foundation) aplikacja Expo dogaduje się z backendem na Railway  | —               | FR-005                            | in-progress |
 | F-02  | route-stitching-adapter  | (foundation) backend zamienia waypointy w trasę trzymającą dróg  | —               | FR-005, FR-006, NFR-01            | ready    |
 | S-01  | generate-route-preview   | wygenerować trasę ze startu + długości i zobaczyć ją na mapie     | F-01, F-02      | US-01, FR-001, FR-002, FR-005, FR-006, NFR-01 | proposed |
 | S-02  | curviness-shaping        | ustawić poziom krętości i dostać trasę, która go respektuje      | S-01            | US-01, FR-003                     | proposed |
@@ -76,7 +76,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Minimalna wtyczka, nie „warstwa API" — jeśli spuchnie do generycznego klienta HTTP, złamie zasadę progresywnego ujawniania; trzymać do jednego round-tripu + DTO + konwencji błędu, resztę dokłada S-01.
-- **Status:** planning
+- **Status:** in-progress
 
 ### F-02: Adapter zszywania trasy (server-side)
 

@@ -278,8 +278,8 @@ as-is (S-01/later cleanup may route it through the client, but that is out of sc
 
 #### Automated
 
-- [ ] 1.1 Type checking passes: `npx tsc --noEmit`
-- [ ] 1.2 Linting passes: `npm run lint`
+- [x] 1.1 Type checking passes: `npx tsc --noEmit`
+- [x] 1.2 Linting passes: `npm run lint`
 
 #### Manual
 
