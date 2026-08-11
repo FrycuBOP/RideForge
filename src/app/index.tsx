@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
 
+import { BackendStatus } from '@/components/backend-status';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -130,6 +131,7 @@ export default function PlanScreen() {
       <ThemedView style={styles.container}>
         <ThemedView style={styles.header}>
           <ThemedText type="title">Plan your{'\n'}ride</ThemedText>
+          <BackendStatus />
         </ThemedView>
 
         <ThemedView style={styles.form}>

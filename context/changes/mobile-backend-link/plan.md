@@ -278,25 +278,25 @@ as-is (S-01/later cleanup may route it through the client, but that is out of sc
 
 #### Automated
 
-- [x] 1.1 Type checking passes: `npx tsc --noEmit`
-- [x] 1.2 Linting passes: `npm run lint`
+- [x] 1.1 Type checking passes: `npx tsc --noEmit` — f541051
+- [x] 1.2 Linting passes: `npm run lint` — f541051
 
 #### Manual
 
-- [ ] 1.3 `API_BASE_URL` resolves from fallback and from `EXPO_PUBLIC_API_URL` override
+- [x] 1.3 `API_BASE_URL` resolves from fallback and from `EXPO_PUBLIC_API_URL` override
 
 ### Phase 2: TanStack Query integration + connectivity proof
 
 #### Automated
 
-- [ ] 2.1 Dependency installs cleanly: `npm install`
-- [ ] 2.2 Single `@tanstack/react-query` instance: `npm ls @tanstack/react-query`
-- [ ] 2.3 Type checking passes: `npx tsc --noEmit`
-- [ ] 2.4 Linting passes: `npm run lint`
+- [x] 2.1 Dependency installs cleanly: `npm install`
+- [x] 2.2 Single `@tanstack/react-query` instance: `npm ls @tanstack/react-query`
+- [x] 2.3 Type checking passes: `npx tsc --noEmit`
+- [x] 2.4 Linting passes: `npm run lint`
 
 #### Manual
 
-- [ ] 2.5 App boots with no redbox (web + one native target)
-- [ ] 2.6 Dev indicator transitions "checking…" → "connected" against live Railway
-- [ ] 2.7 Error state shows normalized `kind` (network/timeout) against a bad URL
-- [ ] 2.8 Plan form + "Plan Route" button unchanged (no regression)
+- [x] 2.5 App boots with no redbox (web + one native target)
+- [x] 2.6 Dev indicator transitions "checking…" → "connected" against live Railway
+- [x] 2.7 Error state shows normalized `kind` (network/timeout) against a bad URL
+- [x] 2.8 Plan form + "Plan Route" button unchanged (no regression)
