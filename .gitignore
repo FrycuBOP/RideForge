@@ -1,29 +1,47 @@
-## .NET build artifacts
-bin/
-obj/
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-## Visual Studio
-.vs/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
+# dependencies
+node_modules/
 
-## NuGet
-*.nupkg
-*.snupkg
-.nuget/
-packages/
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
 
-## Rider / JetBrains
-.idea/
-*.sln.iml
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
-## OS
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
 .DS_Store
-Thumbs.db
+*.pem
 
-## Environment / secrets
-.env
-*.env.local
-appsettings.*.local.json
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# .NET backend (api/)
+api/bin/
+api/obj/

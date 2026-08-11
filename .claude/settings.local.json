@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx skills *)",
-      "PowerShell(npx skills add przeprogramowani/10x-cli)"
+      "PowerShell(npx skills add przeprogramowani/10x-cli)",
+      "Bash(node generate-cv.mjs)"
     ]
   }
 }
