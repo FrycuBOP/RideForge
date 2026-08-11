@@ -7,7 +7,7 @@ context_type: mvp
 tech_stack:
   language: TypeScript (mobile) / C# (backend API)
   framework: Expo React Native (mobile) / ASP.NET Core (backend API)
-  runtime: Node.js via EAS (mobile) / .NET 8 (backend API)
+  runtime: Node.js via EAS (mobile) / .NET 10 (backend API)
 ---
 
 ## Recommendation

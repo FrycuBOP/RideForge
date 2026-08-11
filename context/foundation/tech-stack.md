@@ -20,9 +20,11 @@ hints:
 backend:
   language: csharp
   framework: aspnet-core
-  runtime: net8
+  runtime: net10
   deployment_target: railway
   region: eu-west-amsterdam
+  build: dockerfile
+  routing: hybrid-own-algorithm
 ---
 
 ## Why this stack
@@ -33,4 +35,4 @@ A solo developer building a 3-week after-hours mobile MVP in JavaScript / TypeSc
 
 ### Backend API — C# / ASP.NET Core on Railway
 
-The backend is a thin ASP.NET Core Web API (net8.0) deployed on Railway (EU West, Amsterdam). Its primary responsibility at MVP is proxying routing API calls to GraphHopper or OpenRouteService — keeping the API key server-side rather than bundled in the mobile client. If FR-008 (save-and-revisit routes) ships, auth endpoint support will be added here alongside Supabase JWT verification middleware. C# / .NET 8 was chosen over Node.js for the backend: the developer has existing .NET familiarity, ASP.NET Core's type system aligns well with GPX/GeoJSON data modelling, and Railway's Nixpacks builder auto-detects `.csproj` files and handles `dotnet publish` without a Dockerfile. Platform selection rationale and risk register are in `context/foundation/infrastructure.md`.
+The backend is a thin ASP.NET Core Web API (net10.0) deployed on Railway (EU West, Amsterdam). Its primary responsibility at MVP is **route generation**: RideForge's own curviness/route-shaping algorithm runs server-side and produces candidate waypoints, then a swappable commodity directions / map-matching API only stitches those waypoints into a road-following route (see PRD Open Question 2, resolved 2026-08-11 as hybrid). The external directions-API key stays server-side rather than bundled in the mobile client; the provider (GraphHopper Directions / OpenRouteService / Mapbox / self-hosted OSRM) is not yet picked and is non-blocking, since curviness is no longer sourced externally. If FR-008 (save-and-revisit routes) ships, auth endpoint support will be added here alongside Supabase JWT verification middleware. C# / .NET 10 was chosen over Node.js for the backend: the developer has existing .NET familiarity, and ASP.NET Core's type system aligns well with GPX/GeoJSON data modelling. **Build note:** Railway's Nixpacks snapshot ships only .NET 6, so it cannot build a `net10.0` target — the backend deploys via a Dockerfile (`api/Dockerfile`, `mcr.microsoft.com/dotnet/sdk:10.0`) with `builder = "dockerfile"` in `api/railway.toml`. Platform selection rationale, the Dockerfile finding, and the risk register are in `context/foundation/infrastructure.md`.
