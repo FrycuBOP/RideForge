@@ -297,22 +297,22 @@ No data or schema. The only operational change: to enable the live provider, set
 
 #### Manual
 
-- [ ] 2.3 Live ORS path returns 200 with road-following geometry + plausible distance/duration
-- [ ] 2.4 Returned coordinates are positioned correctly (lat/lng not swapped)
-- [ ] 2.5 Unroutable request returns 422 (not 500)
-- [ ] 2.6 Invalid/empty key returns 502
-- [ ] 2.7 Tiny TimeoutSeconds against a slow request returns 504
-- [ ] 2.8 Switching Provider back to `fake` restores no-network behavior
+- [x] 2.3 Live ORS path returns 200 with road-following geometry + plausible distance/duration — 7040f5e
+- [x] 2.4 Returned coordinates are positioned correctly (lat/lng not swapped) — 7040f5e
+- [x] 2.5 Unroutable request returns 422 (not 500) — 7040f5e
+- [x] 2.6 Invalid/empty key returns 502 — 7040f5e
+- [x] 2.7 Tiny TimeoutSeconds against a slow request returns 504 — 7040f5e
+- [x] 2.8 Switching Provider back to `fake` restores no-network behavior — 7040f5e
 
 ### Phase 3: Minimal xUnit on the fragile bits
 
 #### Automated
 
-- [x] 3.1 Tests pass: `dotnet test`
-- [x] 3.2 Backend still builds: `dotnet build api/RideForgeApi.csproj`
-- [x] 3.3 Mobile lint unaffected: `npm run lint`
+- [x] 3.1 Tests pass: `dotnet test` — cf54fa8
+- [x] 3.2 Backend still builds: `dotnet build api/RideForgeApi.csproj` — cf54fa8
+- [x] 3.3 Mobile lint unaffected: `npm run lint` — cf54fa8
 
 #### Manual
 
-- [x] 3.4 Test output shows decode axis-order case + all three failure-mapping cases passing
-- [x] 3.5 No network calls during the test run (completes offline)
+- [x] 3.4 Test output shows decode axis-order case + all three failure-mapping cases passing — cf54fa8
+- [x] 3.5 No network calls during the test run (completes offline) — cf54fa8
