@@ -278,22 +278,22 @@ No data or schema. The only operational change: to enable the live provider, set
 
 #### Automated
 
-- [x] 1.1 Backend builds: `dotnet build api/RideForgeApi.csproj`
-- [x] 1.2 Mobile lint unaffected: `npm run lint`
+- [x] 1.1 Backend builds: `dotnet build api/RideForgeApi.csproj` — bf120f9
+- [x] 1.2 Mobile lint unaffected: `npm run lint` — bf120f9
 
 #### Manual
 
-- [x] 1.3 Valid 3-waypoint POST (fake) returns 200 with echoed geometry + positive distance/duration, camelCased
-- [x] 1.4 1-waypoint body returns 400
-- [x] 1.5 Malformed/empty body returns 400 (not 500)
-- [x] 1.6 `GET /health` still returns 200 (no regression)
+- [x] 1.3 Valid 3-waypoint POST (fake) returns 200 with echoed geometry + positive distance/duration, camelCased — bf120f9
+- [x] 1.4 1-waypoint body returns 400 — bf120f9
+- [x] 1.5 Malformed/empty body returns 400 (not 500) — bf120f9
+- [x] 1.6 `GET /health` still returns 200 (no regression) — bf120f9
 
 ### Phase 2: Real OpenRouteService provider
 
 #### Automated
 
-- [ ] 2.1 Backend builds: `dotnet build api/RideForgeApi.csproj`
-- [ ] 2.2 Default config resolves the fake provider (no key needed to build/run)
+- [x] 2.1 Backend builds: `dotnet build api/RideForgeApi.csproj`
+- [x] 2.2 Default config resolves the fake provider (no key needed to build/run)
 
 #### Manual
 

@@ -13,11 +13,28 @@ builder.Services.AddCors(options =>
 });
 
 // Route-stitching adapter (F-02). The provider is swappable via config; the default is the
-// in-process fake so local/CI runs need no external API or key. Phase 2 adds the real
-// OpenRouteService branch.
-var stitchingProvider = builder.Configuration["RouteStitching:Provider"] ?? "fake";
-switch (stitchingProvider.ToLowerInvariant())
+// in-process fake so local/CI runs need no external API or key. Set RouteStitching__Provider=
+// openrouteservice (+ RouteStitching__ApiKey) to use the real directions provider.
+var stitchingOptions = builder.Configuration
+    .GetSection(RouteStitchingOptions.SectionName)
+    .Get<RouteStitchingOptions>() ?? new RouteStitchingOptions();
+
+builder.Services.Configure<RouteStitchingOptions>(
+    builder.Configuration.GetSection(RouteStitchingOptions.SectionName));
+
+// Typed HttpClient for the ORS provider, with a per-call ceiling kept under the 30s NFR-01
+// budget. Registered unconditionally (harmless when the fake provider is active).
+builder.Services.AddHttpClient<OpenRouteServiceStitcher>(client =>
 {
+    client.Timeout = TimeSpan.FromSeconds(stitchingOptions.TimeoutSeconds);
+});
+
+switch (stitchingOptions.Provider.ToLowerInvariant())
+{
+    case "openrouteservice":
+        builder.Services.AddTransient<IRouteStitcher>(
+            sp => sp.GetRequiredService<OpenRouteServiceStitcher>());
+        break;
     default:
         builder.Services.AddSingleton<IRouteStitcher, FakeRouteStitcher>();
         break;
