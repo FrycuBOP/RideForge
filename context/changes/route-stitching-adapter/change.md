@@ -1,7 +1,7 @@
 ---
 change_id: route-stitching-adapter
 title: Swappable external adapter that stitches curviness waypoints into on-road routes (F-02)
-status: implemented
+status: impl_reviewed
 created: 2026-08-16
 updated: 2026-08-16
 archived_at: null

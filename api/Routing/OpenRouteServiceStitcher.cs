@@ -43,11 +43,17 @@ public sealed class OpenRouteServiceStitcher : IRouteStitcher
 
             response = await _http.SendAsync(req, ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // The caller (mobile client) aborted — let the framework handle the
+            // client-closed-request instead of fabricating a gateway-timeout response.
+            throw;
+        }
         catch (OperationCanceledException ex)
         {
-            // HttpClient.Timeout or a caller cancel both land here.
+            // HttpClient.Timeout elapsed for the provider call (caller token not cancelled).
             throw new RouteStitchException(
-                StitchFailure.Timeout, "The routing provider call timed out or was cancelled.", ex);
+                StitchFailure.Timeout, "The routing provider call timed out.", ex);
         }
         catch (HttpRequestException ex)
         {
@@ -55,21 +61,26 @@ public sealed class OpenRouteServiceStitcher : IRouteStitcher
                 StitchFailure.ProviderError, "The routing provider could not be reached.", ex);
         }
 
-        if (!response.IsSuccessStatusCode)
+        // Dispose the response on every path (including the throws below) so the pooled
+        // connection is released promptly instead of waiting for GC.
+        using (response)
         {
-            // ORS returns 404 when the waypoints can't be connected into a route.
-            if (response.StatusCode == HttpStatusCode.NotFound)
+            if (!response.IsSuccessStatusCode)
             {
+                // ORS returns 404 when the waypoints can't be connected into a route.
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    throw new RouteStitchException(
+                        StitchFailure.NoRoute, "The provider could not connect the given waypoints into a route.");
+                }
+
                 throw new RouteStitchException(
-                    StitchFailure.NoRoute, "The provider could not connect the given waypoints into a route.");
+                    StitchFailure.ProviderError, $"The routing provider returned HTTP {(int)response.StatusCode}.");
             }
 
-            throw new RouteStitchException(
-                StitchFailure.ProviderError, $"The routing provider returned HTTP {(int)response.StatusCode}.");
+            var json = await response.Content.ReadAsStringAsync(ct);
+            return ParseGeoJson(json);
         }
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        return ParseGeoJson(json);
     }
 
     /// <summary>
@@ -110,6 +121,12 @@ public sealed class OpenRouteServiceStitcher : IRouteStitcher
             var points = new List<Coord>(coords.GetArrayLength());
             foreach (var pair in coords.EnumerateArray())
             {
+                if (pair.ValueKind != JsonValueKind.Array || pair.GetArrayLength() < 2)
+                {
+                    throw new RouteStitchException(
+                        StitchFailure.ProviderError, "The routing provider returned a malformed coordinate pair.");
+                }
+
                 // GeoJSON is [lng, lat]; swap into Coord(Lat, Lng).
                 var lng = pair[0].GetDouble();
                 var lat = pair[1].GetDouble();
@@ -126,8 +143,11 @@ public sealed class OpenRouteServiceStitcher : IRouteStitcher
 
             return new StitchedRoute(points, distance, duration);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
         {
+            // Well-formed-but-wrong-typed JSON (e.g. a string where a coordinate number is
+            // expected) throws InvalidOperationException/FormatException from the element
+            // accessors — surface all of these as a provider error, not an unhandled 500.
             throw new RouteStitchException(
                 StitchFailure.ProviderError, "The routing provider returned an unparseable response.", ex);
         }

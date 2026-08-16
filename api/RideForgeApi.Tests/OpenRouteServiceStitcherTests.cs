@@ -111,6 +111,45 @@ public class OpenRouteServiceStitcherTests
         Assert.Equal(StitchFailure.ProviderError, ex.Kind);
     }
 
+    [Fact]
+    public async Task WrongTypedCoordinate_MapsToProviderError()
+    {
+        // Valid JSON, but a coordinate value is a string — GetDouble would throw
+        // InvalidOperationException, which must surface as ProviderError (not an unhandled 500).
+        const string body = """
+        {
+          "features": [{
+            "geometry": { "type": "LineString", "coordinates": [["oops", 50.06], [20.00, 50.10]] },
+            "properties": { "summary": { "distance": 1.0, "duration": 1.0 } }
+          }]
+        }
+        """;
+        var provider = BuildProvider((_, _) => Json(HttpStatusCode.OK, body));
+
+        var ex = await Assert.ThrowsAsync<RouteStitchException>(
+            () => provider.StitchAsync(SampleRequest, CancellationToken.None));
+        Assert.Equal(StitchFailure.ProviderError, ex.Kind);
+    }
+
+    [Fact]
+    public async Task ShortCoordinatePair_MapsToProviderError()
+    {
+        // A coordinate pair with a single element must not throw IndexOutOfRange → 500.
+        const string body = """
+        {
+          "features": [{
+            "geometry": { "type": "LineString", "coordinates": [[19.94], [20.00, 50.10]] },
+            "properties": { "summary": { "distance": 1.0, "duration": 1.0 } }
+          }]
+        }
+        """;
+        var provider = BuildProvider((_, _) => Json(HttpStatusCode.OK, body));
+
+        var ex = await Assert.ThrowsAsync<RouteStitchException>(
+            () => provider.StitchAsync(SampleRequest, CancellationToken.None));
+        Assert.Equal(StitchFailure.ProviderError, ex.Kind);
+    }
+
     private sealed class StubHandler : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> _responder;

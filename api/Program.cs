@@ -32,6 +32,13 @@ builder.Services.AddHttpClient<OpenRouteServiceStitcher>(client =>
 switch (stitchingOptions.Provider.ToLowerInvariant())
 {
     case "openrouteservice":
+        // Fail fast on a misconfigured deploy rather than 403->502-ing every request.
+        if (string.IsNullOrWhiteSpace(stitchingOptions.ApiKey))
+        {
+            throw new InvalidOperationException(
+                "RouteStitching:Provider is 'openrouteservice' but RouteStitching:ApiKey is not set " +
+                "(supply it via the RouteStitching__ApiKey environment variable).");
+        }
         builder.Services.AddTransient<IRouteStitcher>(
             sp => sp.GetRequiredService<OpenRouteServiceStitcher>());
         break;
