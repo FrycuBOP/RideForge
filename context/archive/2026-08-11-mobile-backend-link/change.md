@@ -1,9 +1,10 @@
 ---
 id: mobile-backend-link
 title: "Mobile ↔ backend link (F-01)"
-status: impl_reviewed
+status: archived
 created: 2026-08-11
 updated: 2026-08-16
+archived_at: 2026-08-16T12:52:11Z
 roadmap_ref: F-01
 prd_refs: [FR-005]
 ---
