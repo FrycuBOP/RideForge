@@ -3,7 +3,7 @@ project: RideForge
 version: 1
 status: draft
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-08-16
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -29,8 +29,8 @@ RideForge generuje motocyklową trasę rekreacyjną z punktu startu i preferencj
 
 | ID    | Change ID                | Outcome (user can …)                                              | Prerequisites   | PRD refs                          | Status   |
 | ----- | ------------------------ | ---------------------------------------------------------------- | --------------- | --------------------------------- | -------- |
-| F-01  | mobile-backend-link      | (foundation) aplikacja Expo dogaduje się z backendem na Railway  | —               | FR-005                            | in-progress |
-| F-02  | route-stitching-adapter  | (foundation) backend zamienia waypointy w trasę trzymającą dróg  | —               | FR-005, FR-006, NFR-01            | ready    |
+| F-01  | mobile-backend-link      | (foundation) aplikacja Expo dogaduje się z backendem na Railway  | —               | FR-005                            | done |
+| F-02  | route-stitching-adapter  | (foundation) backend zamienia waypointy w trasę trzymającą dróg  | —               | FR-005, FR-006, NFR-01            | done |
 | S-01  | generate-route-preview   | wygenerować trasę ze startu + długości i zobaczyć ją na mapie     | F-01, F-02      | US-01, FR-001, FR-002, FR-005, FR-006, NFR-01 | proposed |
 | S-02  | curviness-shaping        | ustawić poziom krętości i dostać trasę, która go respektuje      | S-01            | US-01, FR-003                     | proposed |
 | S-03  | pace-shaping             | ustawić charakter fast/touristic wpływający na trasę             | S-01            | FR-004                            | blocked  |
@@ -76,7 +76,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Minimalna wtyczka, nie „warstwa API" — jeśli spuchnie do generycznego klienta HTTP, złamie zasadę progresywnego ujawniania; trzymać do jednego round-tripu + DTO + konwencji błędu, resztę dokłada S-01.
-- **Status:** in-progress
+- **Status:** done
 
 ### F-02: Adapter zszywania trasy (server-side)
 
@@ -88,9 +88,10 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Parallel with:** F-01
 - **Blockers:** —
 - **Unknowns:**
-  - Który dostawca directions/map-matching (GraphHopper Directions / OpenRouteService / Mapbox / self-hosted OSRM)? — Owner: user. Block: no (curviness liczymy sami, więc każde API trzymające dróg wystarczy — patrz PRD Open Question 2, rozwiązane 2026-08-11).
+  - Kształt outputu algorytmu krętości: rzadkie, uporządkowane waypointy vs gęsty ślad? — Owner: user. Block: yes (dla wyboru wzorca) — determinuje directions-z-waypointami (np. OpenRouteService) vs map-matching (OSRM/GraphHopper). Porównanie i kryterium: `context/changes/route-stitching-adapter/research-stitching.md`.
+  - Który dostawca directions/map-matching (GraphHopper Directions / OpenRouteService / Mapbox / self-hosted OSRM)? — Owner: user. Block: no (curviness liczymy sami, więc każde API trzymające dróg wystarczy — patrz PRD Open Question 2, rozwiązane 2026-08-11). Zależny od kształtu outputu algorytmu (wyżej).
 - **Risk:** Round-trip do zewnętrznego API wlicza się w limit 30 s (NFR-01); przy wielu waypointach latencja się kumuluje. Adapter musi być swappable, by zmiana dostawcy nie dotknęła algorytmu.
-- **Status:** ready
+- **Status:** done
 
 ## Slices
 
@@ -102,6 +103,8 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Prerequisites:** F-01, F-02
 - **Parallel with:** S-05
 - **Blockers:** —
+- **Decyzja (mapa):** biblioteka mapy = **`react-native-maps`** (`<Polyline>` + `fitToCoordinates` pod outcome). Odrzucono `expo-maps` (alpha, iOS 18+, brak Expo Go). Research: `context/changes/route-stitching-adapter/research-stitching.md`, pamięć `northstar-tech-decisions`.
+- **Prerequisite (techniczny):** `react-native-maps` nie działa w Expo Go → S-01 wymaga **dev buildu (EAS)**, nie Expo Go.
 - **Unknowns:**
   - Czy własny algorytm generuje waypointy tak, że po zszyciu trasa mieści się w ±20% zadanej długości (kryterium akceptacji US-01)? — Owner: user. Block: no (to rdzeń do zbudowania i zmierzenia, nie decyzja blokująca planowanie).
 - **Risk:** To najcięższy i najbardziej niepewny slice (nowatorski algorytm + limit 30 s). Sekwencjonowany pierwszy mimo wagi, bo jako north star wystawia najbardziej ryzykowne założenie na ocenę najwcześniej — zgodnie z celem `market-feedback`.
@@ -240,4 +243,5 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Done
 
-(Empty on first generation — `/10x-archive` appends here when a matching change is archived.)
+- **F-01: (foundation) aplikacja Expo dosięga backendu na Railway typowanym request/response dla jednego endpointu, ze wspólną konwencją stanu ładowania i błędu (per FR-005), zweryfikowaną na `GET /health`.** — Archived 2026-08-16 → `context/archive/2026-08-11-mobile-backend-link/`. Lesson: —.
+- **F-02: (foundation) backend zamienia uporządkowaną listę waypointów w trasę trzymającą się dróg (polilinia + dystans + czas) przez zewnętrzne commodity directions/map-matching API, z kluczem trzymanym server-side.** — Archived 2026-08-16 → `context/archive/2026-08-16-route-stitching-adapter/`. Lesson: —.
