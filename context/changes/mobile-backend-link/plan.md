@@ -51,7 +51,8 @@ and query provider.
 
 - **No route-generation call and no wiring of the "Plan Route" button** — that is S-01. The button
   keeps its current `console.log` behavior.
-- **No backend changes.** F-01 verifies against the existing `/health`; no new endpoints, no echo/stub.
+- **No new backend endpoints.** F-01 verifies against the existing `/health`; no echo/stub. (CORS
+  and host-binding *were* touched during implementation — see Addendum.)
 - **No auth** (S-05), no persistence (S-06).
 - **No caching/offline strategy tuning, no query persistence.** Default TanStack Query behavior only.
 - **No test-runner setup.** None exists; adding one is out of scope for this foundation.
@@ -269,6 +270,20 @@ as-is (S-01/later cleanup may route it through the client, but that is out of sc
 - Backend + deploy facts: `context/deployment/deploy-plan.md`, `api/Program.cs:8`
 - Existing Plan screen / fetch pattern: `src/app/index.tsx:71`, `src/app/index.tsx:205`
 - Stack decisions: `context/foundation/tech-stack.md`
+
+## Addendum (2026-08-16, post-implementation)
+
+Two `api/Program.cs` edits landed that the original "What We're NOT Doing" did not anticipate:
+
+- **CORS default policy** (`AllowAnyOrigin/Header/Method`) — *required*, not scope creep: the Phase 2
+  criterion "app boots on web (`npm run web`) → indicator connected" is impossible cross-origin without
+  it. Acceptable for this public, unauthenticated read API; scope to the real web origin(s) when auth
+  (FR-008) lands, since `AllowAnyOrigin` cannot combine with credentials.
+- **Host binding** (`localhost` locally, `0.0.0.0` when `PORT` is set) — a dev-ergonomics tweak that
+  avoids the Windows firewall prompt. Unrelated to F-01 proper; recorded here for traceability.
+- **`src/hooks/use-color-scheme.web.ts`** — incidental refactor from `useState`+`useEffect` to
+  `useSyncExternalStore` (removes a setState-in-effect on web hydration). Improvement, but outside
+  F-01's declared surface; noted for traceability.
 
 ## Progress
 
