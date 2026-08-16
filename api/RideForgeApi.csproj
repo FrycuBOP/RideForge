@@ -6,4 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- The test project lives under api/; keep its sources out of this project's default glob. -->
+  <ItemGroup>
+    <Compile Remove="RideForgeApi.Tests/**/*.cs" />
+    <Content Remove="RideForgeApi.Tests/**/*" />
+    <None Remove="RideForgeApi.Tests/**/*" />
+    <EmbeddedResource Remove="RideForgeApi.Tests/**/*" />
+  </ItemGroup>
+
 </Project>

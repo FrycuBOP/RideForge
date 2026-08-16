@@ -292,8 +292,8 @@ No data or schema. The only operational change: to enable the live provider, set
 
 #### Automated
 
-- [x] 2.1 Backend builds: `dotnet build api/RideForgeApi.csproj`
-- [x] 2.2 Default config resolves the fake provider (no key needed to build/run)
+- [x] 2.1 Backend builds: `dotnet build api/RideForgeApi.csproj` — 7040f5e
+- [x] 2.2 Default config resolves the fake provider (no key needed to build/run) — 7040f5e
 
 #### Manual
 
@@ -308,11 +308,11 @@ No data or schema. The only operational change: to enable the live provider, set
 
 #### Automated
 
-- [ ] 3.1 Tests pass: `dotnet test`
-- [ ] 3.2 Backend still builds: `dotnet build api/RideForgeApi.csproj`
-- [ ] 3.3 Mobile lint unaffected: `npm run lint`
+- [x] 3.1 Tests pass: `dotnet test`
+- [x] 3.2 Backend still builds: `dotnet build api/RideForgeApi.csproj`
+- [x] 3.3 Mobile lint unaffected: `npm run lint`
 
 #### Manual
 
-- [ ] 3.4 Test output shows decode axis-order case + all three failure-mapping cases passing
-- [ ] 3.5 No network calls during the test run (completes offline)
+- [x] 3.4 Test output shows decode axis-order case + all three failure-mapping cases passing
+- [x] 3.5 No network calls during the test run (completes offline)
