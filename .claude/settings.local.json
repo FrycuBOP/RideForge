@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npx skills *)",
-      "PowerShell(npx skills add przeprogramowani/10x-cli)"
+      "PowerShell(npx skills add przeprogramowani/10x-cli)",
+      "Bash(node generate-cv.mjs)",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { Stop-Process -Id \\($c.OwningProcess | Select-Object -First 1\\) -Force; \"stopped backend on 8080\" } else { \"nothing listening on 8080\" })"
     ]
   }
 }
