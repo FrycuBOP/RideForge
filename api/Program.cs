@@ -1,3 +1,5 @@
+using RideForgeApi.Routing;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // The Expo web build is a browser app served from a different origin than this API, so
@@ -9,6 +11,17 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
         policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 });
+
+// Route-stitching adapter (F-02). The provider is swappable via config; the default is the
+// in-process fake so local/CI runs need no external API or key. Phase 2 adds the real
+// OpenRouteService branch.
+var stitchingProvider = builder.Configuration["RouteStitching:Provider"] ?? "fake";
+switch (stitchingProvider.ToLowerInvariant())
+{
+    default:
+        builder.Services.AddSingleton<IRouteStitcher, FakeRouteStitcher>();
+        break;
+}
 
 var app = builder.Build();
 
@@ -23,5 +36,33 @@ app.Urls.Add($"http://{host}:{port}");
 app.UseCors();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "rideforge-api" }));
+
+// Stitch an ordered waypoint list into a road-following route. Failure classes map to
+// distinct HTTP statuses so the mobile client (which reads only the status code, not the
+// body) can tell them apart: 400 bad input, 422 no route, 502 provider error, 504 timeout.
+app.MapPost("/route/stitch", async (StitchRequestDto dto, IRouteStitcher stitcher, CancellationToken ct) =>
+{
+    var error = RouteValidation.Validate(dto);
+    if (error is not null)
+    {
+        return Results.Problem(detail: error, statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    try
+    {
+        var route = await stitcher.StitchAsync(new RouteRequest(dto.Waypoints!), ct);
+        return Results.Ok(new StitchResponseDto(route.Geometry, route.DistanceMeters, route.DurationSeconds));
+    }
+    catch (RouteStitchException ex)
+    {
+        var status = ex.Kind switch
+        {
+            StitchFailure.NoRoute => StatusCodes.Status422UnprocessableEntity,
+            StitchFailure.Timeout => StatusCodes.Status504GatewayTimeout,
+            _ => StatusCodes.Status502BadGateway,
+        };
+        return Results.Problem(detail: ex.Message, statusCode: status);
+    }
+});
 
 app.Run();
