@@ -18,3 +18,10 @@ czeka na F-01+F-02", now stale). Research 2026-08-24 (`research.md`): the F-01 i
 `/route/generate`), the map preview (`react-native-maps` not even installed), and the
 end-to-end wiring are all absent.** Six decisions listed in `research.md` §Open Questions
 need answering before `/10x-plan`.
+
+**Phase 3 note (2026-09-07):** the free OpenRouteService tier is unreliable under load —
+after a burst of calls the directions endpoint slows past the 10s ceiling and the backend
+returns 504 (verified: the same 40 km request went 0.62s → >10s timeout within minutes). The
+client handles it correctly (504 → error message). This is Risk #5 (infra): production needs a
+paid ORS tier or a self-hosted OSRM/GraphHopper. Phase-3 flow testing therefore used the `fake`
+provider; the real-road ±20% checks (2.4–2.6) passed earlier while ORS was responsive.

@@ -484,29 +484,29 @@ after Phase 1. Document this so the solo dev doesn't try Expo Go. No data/schema
 
 #### Automated
 
-- [x] 2.1 Build passes: `dotnet build`
-- [x] 2.2 Tests pass: `dotnet test` (new `RouteGeneratorTests` green)
-- [x] 2.3 `POST /route/generate` returns 200 with non-empty geometry (fake provider)
+- [x] 2.1 Build passes: `dotnet build` — a70d87a
+- [x] 2.2 Tests pass: `dotnet test` (new `RouteGeneratorTests` green) — a70d87a
+- [x] 2.3 `POST /route/generate` returns 200 with non-empty geometry (fake provider) — a70d87a
 
 #### Manual
 
-- [x] 2.4 Real-ORS generate returns a road-following loop departing from start
-- [x] 2.5 Length within ±20% on real roads for ≥2 regions (`detourFactor` tuned)
-- [x] 2.6 Round-trip completes under 30s
+- [x] 2.4 Real-ORS generate returns a road-following loop departing from start — a70d87a
+- [x] 2.5 Length within ±20% on real roads for ≥2 regions (`detourFactor` tuned) — a70d87a
+- [x] 2.6 Round-trip completes under 30s — a70d87a
 
 ### Phase 3: Client wiring — distance input, geocoding, generate mutation
 
 #### Automated
 
-- [ ] 3.1 Typecheck passes: `npx tsc --noEmit`
-- [ ] 3.2 Lint passes: `npm run lint`
-- [ ] 3.3 New generate modules exported from `src/api/index.ts`
+- [x] 3.1 Typecheck passes: `npx tsc --noEmit`
+- [x] 3.2 Lint passes: `npm run lint`
+- [x] 3.3 New generate modules exported from `src/api/index.ts`
 
 #### Manual
 
-- [ ] 3.4 Plan Route geocodes origin, calls backend, shows loading, navigates on success
-- [ ] 3.5 Bad origin and backend error each show a clear `ApiError.kind`-keyed message
-- [ ] 3.6 Curviness selector reads as inactive/"coming soon"
+- [x] 3.4 Plan Route geocodes origin, calls backend, shows loading, navigates on success
+- [x] 3.5 Bad origin and backend error each show a clear `ApiError.kind`-keyed message
+- [x] 3.6 Curviness selector reads as inactive/"coming soon"
 
 ### Phase 4: Results screen + end-to-end map preview
 

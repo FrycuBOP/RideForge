@@ -3,13 +3,15 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
-import { router } from 'expo-router';
 
+import { ApiError } from '@/api';
 import { BackendStatus } from '@/components/backend-status';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useGenerateRouteMutation } from '@/hooks/use-generate-route-mutation';
 import { useTheme } from '@/hooks/use-theme';
+import { geocodeAddress } from '@/lib/geocode';
 
 type CurvinessLevel = 1 | 2 | 3 | 4 | 5;
 
@@ -47,13 +49,39 @@ function formatAddress(place: Location.LocationGeocodedAddress): string {
     .join(', ');
 }
 
+/** Map a normalized API failure to a rider-facing message (FR-005). */
+function planErrorMessage(error: ApiError): string {
+  switch (error.kind) {
+    case 'timeout':
+      return 'Generating took too long. Please try again.';
+    case 'network':
+      return 'Can’t reach the server. Check your connection and try again.';
+    case 'parse':
+      return 'Got an unexpected response from the server.';
+    case 'http':
+      if (error.status === 422) {
+        return 'Couldn’t build a route from there. Try a different start or distance.';
+      }
+      if (error.status === 400) {
+        return 'That request wasn’t valid. Check the distance and try again.';
+      }
+      return 'The server had a problem generating the route. Please try again.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
+}
+
 export default function PlanScreen() {
   const theme = useTheme();
   const safeAreaInsets = useSafeAreaInsets();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [distanceKm, setDistanceKm] = useState('');
   const [curviness, setCurviness] = useState<CurvinessLevel>(3);
   const [locating, setLocating] = useState(true);
+  const [geocodeFailed, setGeocodeFailed] = useState(false);
+
+  const generate = useGenerateRouteMutation();
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +132,21 @@ export default function PlanScreen() {
     };
   }, []);
 
-  const canPlan = origin.trim().length > 0;
+  const parsedDistance = parseFloat(distanceKm);
+  const distanceValid = !Number.isNaN(parsedDistance) && parsedDistance > 0;
+  const canPlan = origin.trim().length > 0 && distanceValid && !generate.isPending;
+
+  async function handlePlan() {
+    setGeocodeFailed(false);
+    generate.reset();
+
+    const start = await geocodeAddress(origin);
+    if (!start) {
+      setGeocodeFailed(true);
+      return;
+    }
+    generate.mutate({ start, distanceKm: parsedDistance });
+  }
 
   const insets = {
     ...safeAreaInsets,
@@ -167,55 +209,89 @@ export default function PlanScreen() {
 
           <ThemedView style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-              CURVINESS
+              DISTANCE
             </ThemedText>
             <ThemedView type="backgroundElement" style={styles.card}>
-              {CURVINESS_OPTIONS.map(({ level, label }, index) => {
-                const selected = curviness === level;
-                return (
-                  <Fragment key={level}>
-                    <Pressable
-                      style={[
-                        styles.curvinessRow,
-                        selected && { backgroundColor: theme.backgroundSelected },
-                      ]}
-                      onPress={() => setCurviness(level)}
-                      accessibilityRole="radio"
-                      accessibilityLabel={label}
-                      accessibilityState={{ checked: selected }}>
-                      <ThemedText type="default" themeColor={selected ? 'text' : 'textSecondary'}>
-                        {label}
-                      </ThemedText>
-                    </Pressable>
-                    {index < CURVINESS_OPTIONS.length - 1 && (
-                      <View
-                        style={[styles.divider, { backgroundColor: theme.backgroundSelected }]}
-                      />
-                    )}
-                  </Fragment>
-                );
-              })}
+              <View style={styles.distanceRow}>
+                <TextInput
+                  style={[styles.input, styles.distanceInput, { color: theme.text }]}
+                  placeholder="e.g. 40"
+                  placeholderTextColor={theme.textSecondary}
+                  value={distanceKm}
+                  onChangeText={setDistanceKm}
+                  keyboardType="decimal-pad"
+                  returnKeyType="done"
+                  accessibilityLabel="Ride distance in kilometres"
+                />
+                <ThemedText type="default" themeColor="textSecondary" style={styles.distanceUnit}>
+                  km
+                </ThemedText>
+              </View>
             </ThemedView>
           </ThemedView>
+
+          <ThemedView style={styles.section}>
+            <View style={styles.sectionLabelRow}>
+              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+                CURVINESS
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Coming soon
+              </ThemedText>
+            </View>
+            {/* Inactive for S-01 — curviness shaping lands in S-02. Shown as a preview, not wired. */}
+            <View pointerEvents="none" style={styles.disabled}>
+              <ThemedView type="backgroundElement" style={styles.card}>
+                {CURVINESS_OPTIONS.map(({ level, label }, index) => {
+                  const selected = curviness === level;
+                  return (
+                    <Fragment key={level}>
+                      <Pressable
+                        style={[
+                          styles.curvinessRow,
+                          selected && { backgroundColor: theme.backgroundSelected },
+                        ]}
+                        onPress={() => setCurviness(level)}
+                        accessibilityRole="radio"
+                        accessibilityLabel={label}
+                        accessibilityState={{ checked: selected, disabled: true }}>
+                        <ThemedText type="default" themeColor={selected ? 'text' : 'textSecondary'}>
+                          {label}
+                        </ThemedText>
+                      </Pressable>
+                      {index < CURVINESS_OPTIONS.length - 1 && (
+                        <View
+                          style={[styles.divider, { backgroundColor: theme.backgroundSelected }]}
+                        />
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </ThemedView>
+            </View>
+          </ThemedView>
+
+          {(geocodeFailed || generate.isError) && (
+            <ThemedText type="small" style={styles.errorText}>
+              {geocodeFailed
+                ? 'Couldn’t find that starting point. Try a more specific address.'
+                : planErrorMessage(generate.error!)}
+            </ThemedText>
+          )}
 
           <Pressable
             style={({ pressed }) => [
               styles.planButton,
               { opacity: canPlan ? (pressed ? 0.8 : 1) : 0.4 },
             ]}
-            onPress={() => {
-              const isLoop = destination.trim().length === 0;
-              console.log('Plan route:', { origin, destination: isLoop ? origin : destination, curviness, isLoop });
-              // TEMP (Phase 1 smoke): jump straight to the map results screen so the dev build
-              // can verify react-native-maps renders. Phase 3 replaces this with the real flow
-              // (geocode origin → generate route → navigate with the result).
-              router.push('/result');
-            }}
+            onPress={handlePlan}
             disabled={!canPlan}
             accessibilityRole="button"
             accessibilityLabel="Plan Route"
-            accessibilityState={{ disabled: !canPlan }}>
-            <Text style={styles.planButtonLabel}>Plan Route</Text>
+            accessibilityState={{ disabled: !canPlan, busy: generate.isPending }}>
+            <Text style={styles.planButtonLabel}>
+              {generate.isPending ? 'Planning…' : 'Plan Route'}
+            </Text>
           </Pressable>
         </ThemedView>
       </ThemedView>
@@ -250,15 +326,33 @@ const styles = StyleSheet.create({
   sectionLabel: {
     letterSpacing: 0.5,
   },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   card: {
     borderRadius: Spacing.three,
     overflow: 'hidden',
+  },
+  disabled: {
+    opacity: 0.45,
   },
   input: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
     fontSize: 16,
     lineHeight: 24,
+  },
+  distanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  distanceInput: {
+    flex: 1,
+  },
+  distanceUnit: {
+    paddingRight: Spacing.three,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -267,6 +361,9 @@ const styles = StyleSheet.create({
   curvinessRow: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
+  },
+  errorText: {
+    color: '#E5484D',
   },
   planButton: {
     backgroundColor: '#208AEF',
