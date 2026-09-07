@@ -47,7 +47,7 @@ public class RouteValidationTests
 {
     [Fact]
     public void NullRequest_IsInvalid() =>
-        Assert.NotNull(RouteValidation.Validate(null));
+        Assert.NotNull(RouteValidation.Validate((StitchRequestDto?)null));
 
     [Fact]
     public void NullWaypoints_IsInvalid() =>

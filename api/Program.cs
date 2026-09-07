@@ -89,4 +89,35 @@ app.MapPost("/route/stitch", async (StitchRequestDto dto, IRouteStitcher stitche
     }
 });
 
+// Generate a loop route from a start point + requested distance, then stitch it into a
+// road-following route. RideForge's own (curviness-agnostic for S-01) waypoint generator feeds
+// the same stitcher, so the success body matches /route/stitch and the failure→status mapping
+// is identical: 400 bad input, 422 no route, 502 provider error, 504 timeout.
+app.MapPost("/route/generate", async (GenerateRequestDto dto, IRouteStitcher stitcher, CancellationToken ct) =>
+{
+    var error = RouteValidation.Validate(dto);
+    if (error is not null)
+    {
+        return Results.Problem(detail: error, statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    var waypoints = RouteGenerator.GenerateLoop(dto.Start!, dto.DistanceKm!.Value);
+
+    try
+    {
+        var route = await stitcher.StitchAsync(new RouteRequest(waypoints), ct);
+        return Results.Ok(new StitchResponseDto(route.Geometry, route.DistanceMeters, route.DurationSeconds));
+    }
+    catch (RouteStitchException ex)
+    {
+        var status = ex.Kind switch
+        {
+            StitchFailure.NoRoute => StatusCodes.Status422UnprocessableEntity,
+            StitchFailure.Timeout => StatusCodes.Status504GatewayTimeout,
+            _ => StatusCodes.Status502BadGateway,
+        };
+        return Results.Problem(detail: ex.Message, statusCode: status);
+    }
+});
+
 app.Run();

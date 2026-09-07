@@ -467,32 +467,32 @@ after Phase 1. Document this so the solo dev doesn't try Expo Go. No data/schema
 
 #### Automated
 
-- [x] 1.1 Dependency installed: `react-native-maps` present in `package.json`
-- [x] 1.2 `eas.json` exists with a `development` profile
-- [x] 1.3 Lint passes: `npm run lint`
-- [x] 1.4 Typecheck passes: `npx tsc --noEmit`
-- [x] 1.8 Typecheck + lint pass after the `(tabs)`/root-Stack restructure; `/result` is a pushable route
+- [x] 1.1 Dependency installed: `react-native-maps` present in `package.json` — 6191d66
+- [x] 1.2 `eas.json` exists with a `development` profile — 6191d66
+- [x] 1.3 Lint passes: `npm run lint` — 6191d66
+- [x] 1.4 Typecheck passes: `npx tsc --noEmit` — 6191d66
+- [x] 1.8 Typecheck + lint pass after the `(tabs)`/root-Stack restructure; `/result` is a pushable route — 6191d66
 
 #### Manual
 
-- [x] 1.5 `eas build --profile development` produces an installable dev build
-- [x] 1.6 A bare `MapView` renders on Android (Google Maps key working) and iOS (Apple Maps)
-- [x] 1.7 App still launches; existing Plan/Explore tabs work in the dev build
-- [x] 1.9 Tapping Plan Route opens `/result` (map); back returns to the tabs
+- [x] 1.5 `eas build --profile development` produces an installable dev build — 6191d66
+- [x] 1.6 A bare `MapView` renders on Android (Google Maps key working) and iOS (Apple Maps) — 6191d66
+- [x] 1.7 App still launches; existing Plan/Explore tabs work in the dev build — 6191d66
+- [x] 1.9 Tapping Plan Route opens `/result` (map); back returns to the tabs — 6191d66
 
 ### Phase 2: Route-generation backend (endpoint + algorithm)
 
 #### Automated
 
-- [ ] 2.1 Build passes: `dotnet build`
-- [ ] 2.2 Tests pass: `dotnet test` (new `RouteGeneratorTests` green)
-- [ ] 2.3 `POST /route/generate` returns 200 with non-empty geometry (fake provider)
+- [x] 2.1 Build passes: `dotnet build`
+- [x] 2.2 Tests pass: `dotnet test` (new `RouteGeneratorTests` green)
+- [x] 2.3 `POST /route/generate` returns 200 with non-empty geometry (fake provider)
 
 #### Manual
 
-- [ ] 2.4 Real-ORS generate returns a road-following loop departing from start
-- [ ] 2.5 Length within ±20% on real roads for ≥2 regions (`detourFactor` tuned)
-- [ ] 2.6 Round-trip completes under 30s
+- [x] 2.4 Real-ORS generate returns a road-following loop departing from start
+- [x] 2.5 Length within ±20% on real roads for ≥2 regions (`detourFactor` tuned)
+- [x] 2.6 Round-trip completes under 30s
 
 ### Phase 3: Client wiring — distance input, geocoding, generate mutation
 

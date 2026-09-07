@@ -3,6 +3,36 @@ namespace RideForgeApi.Routing;
 /// <summary>Input validation for the stitch endpoint. Extracted so it is unit-testable.</summary>
 public static class RouteValidation
 {
+    /// <summary>Upper bound on a requested ride distance; guards against absurd loops / runaway generation.</summary>
+    public const double MaxDistanceKm = 500.0;
+
+    /// <summary>
+    /// Validates an incoming generate request. Returns a human-readable error message when the
+    /// request is invalid (→ endpoint responds 400), or <c>null</c> when it is well-formed.
+    /// </summary>
+    public static string? Validate(GenerateRequestDto? dto)
+    {
+        if (dto?.Start is null)
+        {
+            return "A start location is required.";
+        }
+
+        var c = dto.Start;
+        if (double.IsNaN(c.Lat) || double.IsNaN(c.Lng)
+            || c.Lat < -90 || c.Lat > 90 || c.Lng < -180 || c.Lng > 180)
+        {
+            return "Start is out of range (lat -90..90, lng -180..180).";
+        }
+
+        if (dto.DistanceKm is null || double.IsNaN(dto.DistanceKm.Value)
+            || dto.DistanceKm <= 0 || dto.DistanceKm > MaxDistanceKm)
+        {
+            return $"Distance must be greater than 0 and at most {MaxDistanceKm} km.";
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Validates an incoming stitch request. Returns a human-readable error message when the
     /// request is invalid (→ endpoint responds 400), or <c>null</c> when it is well-formed.

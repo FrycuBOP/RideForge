@@ -30,6 +30,13 @@ public record StitchedRoute(
 public record StitchRequestDto(IReadOnlyList<Coord>? Waypoints);
 
 /// <summary>
+/// Endpoint request body for route generation. Serializes to camelCase: <c>start</c>,
+/// <c>distanceKm</c>. The generator turns this into a waypoint loop the stitcher then routes;
+/// the success body is the same <see cref="StitchResponseDto"/> the stitch endpoint returns.
+/// </summary>
+public record GenerateRequestDto(Coord? Start, double? DistanceKm);
+
+/// <summary>
 /// Endpoint success body. Serializes to camelCase: <c>geometry</c>, <c>distanceMeters</c>,
 /// <c>durationSeconds</c> — the shape the mobile client (react-native-maps Polyline) consumes.
 /// </summary>
