@@ -3,6 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
+import { router } from 'expo-router';
 
 import { BackendStatus } from '@/components/backend-status';
 import { ThemedText } from '@/components/themed-text';
@@ -205,6 +206,10 @@ export default function PlanScreen() {
             onPress={() => {
               const isLoop = destination.trim().length === 0;
               console.log('Plan route:', { origin, destination: isLoop ? origin : destination, curviness, isLoop });
+              // TEMP (Phase 1 smoke): jump straight to the map results screen so the dev build
+              // can verify react-native-maps renders. Phase 3 replaces this with the real flow
+              // (geocode origin → generate route → navigate with the result).
+              router.push('/result');
             }}
             disabled={!canPlan}
             accessibilityRole="button"

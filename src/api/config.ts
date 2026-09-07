@@ -7,7 +7,7 @@
  * `EXPO_PUBLIC_API_URL` requires restarting the dev server with `--clear`.
  */
 export const API_BASE_URL: string =
-  process.env.EXPO_PUBLIC_API_URL ?? 'https://rideforge-api-production.up.railway.app';
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://rideforge-production.up.railway.app';
 
 /**
  * Default request timeout. Sized to the 30s route-generation budget (NFR-01); short-lived

@@ -46,3 +46,7 @@ example
 # .NET backend (api/)
 api/bin/
 api/obj/
+
+# EAS local credentials (sensitive — keystore references / signing passwords)
+credentials.json
+credentials/

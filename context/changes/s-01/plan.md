@@ -57,6 +57,11 @@ distance. Verified by: `dotnet test` (generator invariants) + `dotnet build` + `
   geocode split ([index.tsx:71-91](src/app/index.tsx)); forward geocoding follows suit.
 - Generation is a POST with side-effecting cost (a billed ORS call) — model it as a
   react-query `useMutation`, not a query.
+- **Navigation is flat (found during Phase 1).** The root `src/app/_layout.tsx` renders
+  `NativeTabs` directly (tabs `index`, `explore`); there is **no root `<Stack>`**, and `result`
+  is neither a tab nor on a stack, so `router.push('/result')` is a silent no-op. Expo SDK 56
+  requires a root `<Stack>` wrapping a `(tabs)` group to push a non-tab route (docs: *nesting
+  navigators / Stack inside native tabs*). This is now folded into Phase 1.
 
 ## What We're NOT Doing
 
@@ -107,6 +112,9 @@ all prior phases.
 
 Install and configure `react-native-maps`, stand up an EAS **development** build, and prove a
 bare `MapView` renders on a device/emulator. No route data yet — this unblocks the preview.
+Also restructures navigation to a root `<Stack>` over a `(tabs)` group so `/result` is
+reachable (the flat `NativeTabs` layout can't push a non-tab route), plus the connectivity/web
+fixes surfaced while getting the dev build to run.
 
 ### Changes Required:
 
@@ -141,7 +149,45 @@ repo goes public (env-injected via `app.config.js`) — for the MVP dev build it
 **Intent**: Render a minimal `MapView` to confirm the dev build shows a map on each platform.
 
 **Contract**: A `MapView` filling the screen, default region. (Superseded by Phase 4's full
-results screen — this is just the Phase 1 proof.)
+results screen — this is just the Phase 1 proof.) Reached via the temporary Plan-Route
+navigation in change #5 below.
+
+#### 4. Navigation restructure — root Stack over a `(tabs)` group
+
+**File**: `src/app/_layout.tsx`, `src/app/(tabs)/_layout.tsx` (new), `src/app/(tabs)/index.tsx` (moved), `src/app/(tabs)/explore.tsx` (moved)
+
+**Intent**: Make `/result` reachable. The flat `NativeTabs` root can't push a non-tab route, so
+adopt the standard Expo Router structure — a root `<Stack>` wrapping a `(tabs)` route group.
+Required by the Phase 1 smoke (to view the map) and by Phase 4 (results navigation).
+
+**Contract**:
+- Move `src/app/index.tsx` → `src/app/(tabs)/index.tsx` and `src/app/explore.tsx` →
+  `src/app/(tabs)/explore.tsx`. A `(…)` group is not part of the URL, so `/` and `/explore` are
+  unchanged; `@/*`-aliased imports are unaffected by the move.
+- New `src/app/(tabs)/_layout.tsx` renders the tabs (`<AppTabs />` from
+  `src/components/app-tabs.tsx`; the `.web` variant still applies). `NativeTabs.Trigger` names
+  `index`/`explore` now resolve within the group.
+- Root `src/app/_layout.tsx` keeps the providers (`QueryClientProvider`, `ThemeProvider`,
+  `AnimatedSplashOverlay`) and renders a `<Stack>` with
+  `<Stack.Screen name="(tabs)" options={{ headerShown: false }} />` and a `result` screen.
+  `result.tsx` + `result.web.tsx` stay at `src/app/` as siblings of `(tabs)`, now pushable via
+  `router.push('/result')`.
+
+#### 5. Connectivity + web fixes surfaced during implementation (already applied)
+
+**File**: `src/api/config.ts`, `.easignore` (new), `src/app/result.web.tsx` (new), `src/app/index.tsx`
+
+**Intent**: Record fixes made while getting the dev build to run so the plan matches reality.
+
+**Contract**:
+- `src/api/config.ts` — corrected the production fallback domain to
+  `https://rideforge-production.up.railway.app` (the `-api-` domain 404s). F-01 bug.
+- `.easignore` (new) — excludes `.agents/`, `.claude/`, `api/`, `context/` from the EAS archive
+  (fixes a Windows symlink `EPERM` during the upload; also slims the build).
+- `src/app/result.web.tsx` (new) — web fallback; `react-native-maps` has no web support and
+  otherwise crashes the web bundle (`codegenNativeComponent is not a function`).
+- `src/app/index.tsx` — the Plan Route button temporarily calls `router.push('/result')` so the
+  map is reachable now; Phase 3 replaces it with geocode → generate → navigate.
 
 ### Success Criteria:
 
@@ -151,12 +197,14 @@ results screen — this is just the Phase 1 proof.)
 - `eas.json` exists with a `development` profile
 - Lint passes: `npm run lint`
 - Typecheck passes: `npx tsc --noEmit`
+- After the restructure, the router resolves the `(tabs)` group and `/result` as a pushable route (typecheck + lint green)
 
 #### Manual Verification:
 
 - `eas build --profile development` produces an installable dev build
 - A bare `MapView` renders on Android (Google Maps, key working) and iOS (Apple Maps)
 - App still launches and the existing Plan/Explore tabs work in the dev build
+- Tapping **Plan Route** opens the `/result` map screen; back returns to the tabs
 
 **Implementation Note**: Pause for human confirmation that the dev build installs and the map
 renders before proceeding.
@@ -251,7 +299,7 @@ to navigation.
 
 #### 1. Distance input + inactive curviness
 
-**File**: `src/app/index.tsx`
+**File**: `src/app/(tabs)/index.tsx` (moved there in Phase 1 change #4)
 
 **Intent**: Add the missing ride-length control (km) and make the curviness selector clearly
 inactive so it doesn't imply a guarantee S-01 doesn't deliver (FR-003).
@@ -291,7 +339,7 @@ and navigates to `/result`.
 
 #### 4. Wire the Plan button
 
-**File**: `src/app/index.tsx`
+**File**: `src/app/(tabs)/index.tsx` (moved there in Phase 1 change #4)
 
 **Intent**: Replace the `console.log` with the real flow.
 
@@ -423,12 +471,14 @@ after Phase 1. Document this so the solo dev doesn't try Expo Go. No data/schema
 - [x] 1.2 `eas.json` exists with a `development` profile
 - [x] 1.3 Lint passes: `npm run lint`
 - [x] 1.4 Typecheck passes: `npx tsc --noEmit`
+- [x] 1.8 Typecheck + lint pass after the `(tabs)`/root-Stack restructure; `/result` is a pushable route
 
 #### Manual
 
-- [ ] 1.5 `eas build --profile development` produces an installable dev build
-- [ ] 1.6 A bare `MapView` renders on Android (Google Maps key working) and iOS (Apple Maps)
-- [ ] 1.7 App still launches; existing Plan/Explore tabs work in the dev build
+- [x] 1.5 `eas build --profile development` produces an installable dev build
+- [x] 1.6 A bare `MapView` renders on Android (Google Maps key working) and iOS (Apple Maps)
+- [x] 1.7 App still launches; existing Plan/Explore tabs work in the dev build
+- [x] 1.9 Tapping Plan Route opens `/result` (map); back returns to the tabs
 
 ### Phase 2: Route-generation backend (endpoint + algorithm)
 
