@@ -245,3 +245,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 - **F-01: (foundation) aplikacja Expo dosięga backendu na Railway typowanym request/response dla jednego endpointu, ze wspólną konwencją stanu ładowania i błędu (per FR-005), zweryfikowaną na `GET /health`.** — Archived 2026-08-16 → `context/archive/2026-08-11-mobile-backend-link/`. Lesson: —.
 - **F-02: (foundation) backend zamienia uporządkowaną listę waypointów w trasę trzymającą się dróg (polilinia + dystans + czas) przez zewnętrzne commodity directions/map-matching API, z kluczem trzymanym server-side.** — Archived 2026-08-16 → `context/archive/2026-08-16-route-stitching-adapter/`. Lesson: —.
+- **S-01: jeździec wpisuje lokalizację startu i długość przejazdu, klika Generuj i widzi trasę narysowaną na mapie, wychodzącą z podanego startu.** — Archived 2026-09-08 → `context/archive/2026-08-24-s-01/`. Lesson: —.
