@@ -512,13 +512,13 @@ after Phase 1. Document this so the solo dev doesn't try Expo Go. No data/schema
 
 #### Automated
 
-- [x] 4.1 Typecheck passes: `npx tsc --noEmit`
-- [x] 4.2 Lint passes: `npm run lint`
-- [x] 4.3 `src/app/result.tsx` resolves as a typed route
+- [x] 4.1 Typecheck passes: `npx tsc --noEmit` — aa905ad
+- [x] 4.2 Lint passes: `npm run lint` — aa905ad
+- [x] 4.3 `src/app/result.tsx` resolves as a typed route — aa905ad
 
 #### Manual
 
-- [ ] 4.4 Full flow draws a loop departing from + returning to start, framed by `fitToCoordinates`
-- [ ] 4.5 Stitched distance within ±20% of requested km on real roads
-- [ ] 4.6 End-to-end completes within 30s
-- [ ] 4.7 Reloading `/result` with no stored route shows the empty state, not a crash
+- [x] 4.4 Full flow draws a loop departing from + returning to start, framed by `fitToCoordinates` — aa905ad
+- [x] 4.5 Stitched distance within ±20% of requested km on real roads — aa905ad
+- [x] 4.6 End-to-end completes within 30s — aa905ad
+- [x] 4.7 Reloading `/result` with no stored route shows the empty state, not a crash — aa905ad

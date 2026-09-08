@@ -1,9 +1,9 @@
 ---
 change_id: s-01
 title: Generate route from start + length, show on map (north-star S-01 / generate-route-preview)
-status: implementing
+status: implemented
 created: 2026-08-24
-updated: 2026-09-07
+updated: 2026-09-08
 archived_at: null
 ---
 
@@ -25,3 +25,11 @@ returns 504 (verified: the same 40 km request went 0.62s → >10s timeout within
 client handles it correctly (504 → error message). This is Risk #5 (infra): production needs a
 paid ORS tier or a self-hosted OSRM/GraphHopper. Phase-3 flow testing therefore used the `fake`
 provider; the real-road ±20% checks (2.4–2.6) passed earlier while ORS was responsive.
+
+**Phase 4 note (2026-09-08):** the first end-to-end run drew a straight-line octagon and
+reported 12.5 km for a 20 km request — the Railway deploy was serving the `fake` stitcher.
+`api/appsettings.json` commits `Provider: "fake"` on purpose (local/CI need no ORS key), so the
+deploy must override it with `RouteStitching__Provider=openrouteservice` +
+`RouteStitching__ApiKey`. Symptom signature worth remembering: 9 geometry points and a distance
+of exactly `distanceKm / DetourFactor` means fake, not a generator bug. After the flip: 640
+points, 19.06 km (-4.7%), 0.16s.
