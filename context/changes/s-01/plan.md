@@ -498,23 +498,23 @@ after Phase 1. Document this so the solo dev doesn't try Expo Go. No data/schema
 
 #### Automated
 
-- [x] 3.1 Typecheck passes: `npx tsc --noEmit`
-- [x] 3.2 Lint passes: `npm run lint`
-- [x] 3.3 New generate modules exported from `src/api/index.ts`
+- [x] 3.1 Typecheck passes: `npx tsc --noEmit` — 5eaa29f
+- [x] 3.2 Lint passes: `npm run lint` — 5eaa29f
+- [x] 3.3 New generate modules exported from `src/api/index.ts` — 5eaa29f
 
 #### Manual
 
-- [x] 3.4 Plan Route geocodes origin, calls backend, shows loading, navigates on success
-- [x] 3.5 Bad origin and backend error each show a clear `ApiError.kind`-keyed message
-- [x] 3.6 Curviness selector reads as inactive/"coming soon"
+- [x] 3.4 Plan Route geocodes origin, calls backend, shows loading, navigates on success — 5eaa29f
+- [x] 3.5 Bad origin and backend error each show a clear `ApiError.kind`-keyed message — 5eaa29f
+- [x] 3.6 Curviness selector reads as inactive/"coming soon" — 5eaa29f
 
 ### Phase 4: Results screen + end-to-end map preview
 
 #### Automated
 
-- [ ] 4.1 Typecheck passes: `npx tsc --noEmit`
-- [ ] 4.2 Lint passes: `npm run lint`
-- [ ] 4.3 `src/app/result.tsx` resolves as a typed route
+- [x] 4.1 Typecheck passes: `npx tsc --noEmit`
+- [x] 4.2 Lint passes: `npm run lint`
+- [x] 4.3 `src/app/result.tsx` resolves as a typed route
 
 #### Manual
 
