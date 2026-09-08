@@ -3,7 +3,7 @@ project: RideForge
 version: 1
 status: draft
 created: 2026-08-11
-updated: 2026-08-24
+updated: 2026-09-08
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -31,7 +31,7 @@ RideForge generuje motocyklową trasę rekreacyjną z punktu startu i preferencj
 | ----- | ------------------------ | ---------------------------------------------------------------- | --------------- | --------------------------------- | -------- |
 | F-01  | mobile-backend-link      | (foundation) aplikacja Expo dogaduje się z backendem na Railway  | —               | FR-005                            | done |
 | F-02  | route-stitching-adapter  | (foundation) backend zamienia waypointy w trasę trzymającą dróg  | —               | FR-005, FR-006, NFR-01            | done |
-| S-01  | generate-route-preview   | wygenerować trasę ze startu + długości i zobaczyć ją na mapie     | F-01, F-02      | US-01, FR-001, FR-002, FR-005, FR-006, NFR-01 | in-progress |
+| S-01  | generate-route-preview   | wygenerować trasę ze startu + długości i zobaczyć ją na mapie     | F-01, F-02      | US-01, FR-001, FR-002, FR-005, FR-006, NFR-01 | done |
 | S-02  | curviness-shaping        | ustawić poziom krętości i dostać trasę, która go respektuje      | S-01            | US-01, FR-003                     | proposed |
 | S-03  | pace-shaping             | ustawić charakter fast/touristic wpływający na trasę             | S-01            | FR-004                            | blocked  |
 | S-04  | gpx-download             | pobrać wygenerowaną trasę jako poprawny plik GPX                 | S-01            | US-01, FR-007                     | proposed |
@@ -108,7 +108,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Czy własny algorytm generuje waypointy tak, że po zszyciu trasa mieści się w ±20% zadanej długości (kryterium akceptacji US-01)? — Owner: user. Block: no (to rdzeń do zbudowania i zmierzenia, nie decyzja blokująca planowanie).
 - **Risk:** To najcięższy i najbardziej niepewny slice (nowatorski algorytm + limit 30 s). Sekwencjonowany pierwszy mimo wagi, bo jako north star wystawia najbardziej ryzykowne założenie na ocenę najwcześniej — zgodnie z celem `market-feedback`.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-02: Kształtowanie krętości (curviness)
 
@@ -217,7 +217,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | ---------- | ------------------------ | ------------------------------------------------------- | --------------------- | ------------------------------------------------ |
 | F-01       | mobile-backend-link      | Wire Expo app to Railway backend (typed client + errors) | yes                   | Równoległy z F-02; odblokowuje north star S-01   |
 | F-02       | route-stitching-adapter  | Server-side directions/map-matching stitching adapter   | yes                   | Wybór dostawcy niezablokowany; odblokowuje S-01  |
-| S-01       | generate-route-preview   | Generate route from start + length, show on map         | no                    | Czeka na F-01 + F-02                             |
+| S-01       | generate-route-preview   | Generate route from start + length, show on map         | done                  | Zaimplementowany i zreviewowany (2026-09-08)     |
 | S-02       | curviness-shaping        | Curviness slider shapes the generated route             | no                    | Czeka na S-01                                    |
 | S-03       | pace-shaping             | Fast/touristic pace shapes the generated route          | no                    | Zablokowany na OQ1 (definicja fast/touristic)    |
 | S-04       | gpx-download             | Download generated route as valid GPX                   | no                    | Czeka na S-01; przetestować w Garmin/OsmAnd      |
