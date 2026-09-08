@@ -11,25 +11,9 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useGenerateRouteMutation } from '@/hooks/use-generate-route-mutation';
 import { useTheme } from '@/hooks/use-theme';
-import { geocodeAddress } from '@/lib/geocode';
+import { geocodeAddress, reverseGeocode, type GeocodeFailureReason } from '@/lib/geocode';
 
 type CurvinessLevel = 1 | 2 | 3 | 4 | 5;
-
-type NominatimAddress = {
-  house_number?: string;
-  road?: string;
-  quarter?: string;
-  suburb?: string;
-  city?: string;
-  town?: string;
-  village?: string;
-  municipality?: string;
-  county?: string;
-};
-
-type NominatimResponse = {
-  address: NominatimAddress;
-};
 
 const CURVINESS_OPTIONS: { level: CurvinessLevel; label: string }[] = [
   { level: 1, label: 'Highways' },
@@ -39,14 +23,16 @@ const CURVINESS_OPTIONS: { level: CurvinessLevel; label: string }[] = [
   { level: 5, label: 'Extreme' },
 ];
 
-function formatAddress(place: Location.LocationGeocodedAddress): string {
-  const street = [place.streetNumber, place.street]
-    .filter((p): p is string => p !== null)
-    .join(' ');
-  const locality = place.city ?? place.district ?? place.subregion ?? null;
-  return [street || place.name, locality]
-    .filter((p): p is string => typeof p === 'string' && p.length > 0)
-    .join(', ');
+/** Map a geocode failure to advice that matches the actual cause (FR-005). */
+function geocodeErrorMessage(reason: GeocodeFailureReason): string {
+  switch (reason) {
+    case 'permission':
+      return 'Location access is off, so this device can’t look up addresses. Turn it on in Settings, then try again.';
+    case 'unavailable':
+      return 'Address lookup isn’t available right now. Check your connection and try again.';
+    default:
+      return 'Couldn’t find that starting point. Try a more specific address.';
+  }
 }
 
 /** Map a normalized API failure to a rider-facing message (FR-005). */
@@ -79,7 +65,8 @@ export default function PlanScreen() {
   const [distanceKm, setDistanceKm] = useState('');
   const [curviness, setCurviness] = useState<CurvinessLevel>(3);
   const [locating, setLocating] = useState(true);
-  const [geocodeFailed, setGeocodeFailed] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<GeocodeFailureReason | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
 
   const generate = useGenerateRouteMutation();
 
@@ -96,28 +83,10 @@ export default function PlanScreen() {
         });
         if (cancelled) return;
 
-        let address = '';
-        if (Platform.OS === 'web') {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${position.coords.latitude}&lon=${position.coords.longitude}&format=json&zoom=18&addressdetails=1`
-          );
-          const data = (await response.json()) as NominatimResponse;
-          const street = [data.address.road, data.address.house_number]
-            .filter((p): p is string => typeof p === 'string' && p.length > 0)
-            .join(' ');
-          const locality =
-            data.address.city ??
-            data.address.town ??
-            data.address.village ??
-            data.address.municipality ??
-            data.address.county;
-          address = [street, locality]
-            .filter((p): p is string => typeof p === 'string' && p.length > 0)
-            .join(', ');
-        } else {
-          const [place] = await Location.reverseGeocodeAsync(position.coords);
-          if (place) address = formatAddress(place);
-        }
+        const address = await reverseGeocode({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
         if (!cancelled && address) setOrigin(address);
       } catch {
         // permission denied or location unavailable — leave field empty
@@ -134,18 +103,26 @@ export default function PlanScreen() {
 
   const parsedDistance = parseFloat(distanceKm);
   const distanceValid = !Number.isNaN(parsedDistance) && parsedDistance > 0;
-  const canPlan = origin.trim().length > 0 && distanceValid && !generate.isPending;
+  // `geocoding` matters as much as `isPending`: the geocode await happens before the mutation starts,
+  // so without it the button stays live for seconds and a double-tap fires two generations.
+  const busy = geocoding || generate.isPending;
+  const canPlan = origin.trim().length > 0 && distanceValid && !busy;
 
   async function handlePlan() {
-    setGeocodeFailed(false);
+    setGeocodeError(null);
     generate.reset();
+    setGeocoding(true);
 
-    const start = await geocodeAddress(origin);
-    if (!start) {
-      setGeocodeFailed(true);
-      return;
+    try {
+      const result = await geocodeAddress(origin);
+      if (!result.ok) {
+        setGeocodeError(result.reason);
+        return;
+      }
+      generate.mutate({ start: result.point, distanceKm: parsedDistance });
+    } finally {
+      setGeocoding(false);
     }
-    generate.mutate({ start, distanceKm: parsedDistance });
   }
 
   const insets = {
@@ -271,10 +248,10 @@ export default function PlanScreen() {
             </View>
           </ThemedView>
 
-          {(geocodeFailed || generate.isError) && (
+          {(geocodeError !== null || generate.isError) && (
             <ThemedText type="small" style={styles.errorText}>
-              {geocodeFailed
-                ? 'Couldn’t find that starting point. Try a more specific address.'
+              {geocodeError !== null
+                ? geocodeErrorMessage(geocodeError)
                 : planErrorMessage(generate.error!)}
             </ThemedText>
           )}
@@ -288,9 +265,9 @@ export default function PlanScreen() {
             disabled={!canPlan}
             accessibilityRole="button"
             accessibilityLabel="Plan Route"
-            accessibilityState={{ disabled: !canPlan, busy: generate.isPending }}>
+            accessibilityState={{ disabled: !canPlan, busy }}>
             <Text style={styles.planButtonLabel}>
-              {generate.isPending ? 'Planning…' : 'Plan Route'}
+              {geocoding ? 'Finding start…' : generate.isPending ? 'Planning…' : 'Plan Route'}
             </Text>
           </Pressable>
         </ThemedView>

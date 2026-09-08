@@ -7,6 +7,15 @@ public static class RouteValidation
     public const double MaxDistanceKm = 500.0;
 
     /// <summary>
+    /// Latitude ceiling for a generation start. The generator's equirectangular offset divides by
+    /// <c>cos(latitude)</c>, which blows up as the loop's centre approaches a pole — at the 500 km
+    /// ceiling a start at 89.541 puts the centre exactly on the pole and produces longitudes around
+    /// 7.5e15. 85 leaves ample margin (the widest loop reaches ~0.92 degrees north of its start) and
+    /// excludes nothing rideable.
+    /// </summary>
+    public const double MaxGenerationLatitude = 85.0;
+
+    /// <summary>
     /// Validates an incoming generate request. Returns a human-readable error message when the
     /// request is invalid (→ endpoint responds 400), or <c>null</c> when it is well-formed.
     /// </summary>
@@ -22,6 +31,11 @@ public static class RouteValidation
             || c.Lat < -90 || c.Lat > 90 || c.Lng < -180 || c.Lng > 180)
         {
             return "Start is out of range (lat -90..90, lng -180..180).";
+        }
+
+        if (Math.Abs(c.Lat) > MaxGenerationLatitude)
+        {
+            return $"Start is too close to a pole for loop generation (max latitude {MaxGenerationLatitude}).";
         }
 
         if (dto.DistanceKm is null || double.IsNaN(dto.DistanceKm.Value)

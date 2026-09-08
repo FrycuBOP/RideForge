@@ -29,7 +29,12 @@ builder.Services.AddHttpClient<OpenRouteServiceStitcher>(client =>
     client.Timeout = TimeSpan.FromSeconds(stitchingOptions.TimeoutSeconds);
 });
 
-switch (stitchingOptions.Provider.ToLowerInvariant())
+// Both misconfiguration paths fail fast at startup rather than degrading silently at request time.
+// An unrecognized provider name used to fall through to the fake, which answers 200 with a
+// straight-line polygon at 1/DetourFactor of the requested distance and nothing in the body to say
+// so — a wrong-output failure that is far harder to spot than a boot failure.
+var resolvedProvider = stitchingOptions.Provider.ToLowerInvariant();
+switch (resolvedProvider)
 {
     case "openrouteservice":
         // Fail fast on a misconfigured deploy rather than 403->502-ing every request.
@@ -42,9 +47,13 @@ switch (stitchingOptions.Provider.ToLowerInvariant())
         builder.Services.AddTransient<IRouteStitcher>(
             sp => sp.GetRequiredService<OpenRouteServiceStitcher>());
         break;
-    default:
+    case "fake":
         builder.Services.AddSingleton<IRouteStitcher, FakeRouteStitcher>();
         break;
+    default:
+        throw new InvalidOperationException(
+            $"RouteStitching:Provider is '{stitchingOptions.Provider}', which is not a known provider. " +
+            "Use 'openrouteservice' or 'fake'.");
 }
 
 var app = builder.Build();
@@ -56,6 +65,11 @@ var portEnv = Environment.GetEnvironmentVariable("PORT");
 var host = portEnv is null ? "localhost" : "0.0.0.0";
 var port = portEnv ?? "8080";
 app.Urls.Add($"http://{host}:{port}");
+
+// Say which stitcher is actually serving traffic. A deploy that simply never sets
+// RouteStitching__Provider falls back to the committed "fake" default and is otherwise
+// indistinguishable from a working one until you measure the route length.
+app.Logger.LogInformation("Route stitching provider resolved to '{Provider}'.", resolvedProvider);
 
 app.UseCors();
 
@@ -103,6 +117,17 @@ app.MapPost("/route/generate", async (GenerateRequestDto dto, IRouteStitcher sti
 
     var waypoints = RouteGenerator.GenerateLoop(dto.Start!, dto.DistanceKm!.Value);
 
+    // Re-validate the generated geometry, not just the request: the generator projects on a plane, so
+    // a start the input check accepts could still place a waypoint outside the legal domain. Catching
+    // it here yields a 400 instead of an opaque provider 502.
+    var geometryError = RouteValidation.Validate(new StitchRequestDto(waypoints));
+    if (geometryError is not null)
+    {
+        return Results.Problem(
+            detail: $"Generated route is not routable: {geometryError}",
+            statusCode: StatusCodes.Status400BadRequest);
+    }
+
     try
     {
         var route = await stitcher.StitchAsync(new RouteRequest(waypoints), ct);
@@ -121,3 +146,10 @@ app.MapPost("/route/generate", async (GenerateRequestDto dto, IRouteStitcher sti
 });
 
 app.Run();
+
+/// <summary>
+/// Exposed so the test project can boot the real pipeline with
+/// <c>WebApplicationFactory&lt;Program&gt;</c>. Top-level statements generate an internal
+/// <c>Program</c> class; this makes it public without changing any behaviour.
+/// </summary>
+public partial class Program;

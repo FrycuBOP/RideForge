@@ -1,9 +1,11 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import { useColorScheme } from 'react-native';
 
 import { queryClient } from '@/api/query-client';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+// Not react-native's hook: the .web sibling defers to the client snapshot so a static web render
+// doesn't hydrate with the wrong theme (app.json sets output: "static").
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 /**
  * Root layout. Providers (react-query, theme, splash) wrap a root `<Stack>` so non-tab routes

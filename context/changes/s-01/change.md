@@ -1,7 +1,7 @@
 ---
 change_id: s-01
 title: Generate route from start + length, show on map (north-star S-01 / generate-route-preview)
-status: implemented
+status: impl_reviewed
 created: 2026-08-24
 updated: 2026-09-08
 archived_at: null

@@ -60,7 +60,20 @@ public static class RouteGenerator
     {
         var dLat = northMeters / EarthRadiusMeters * (180.0 / Math.PI);
         var dLng = eastMeters / (EarthRadiusMeters * Math.Cos(DegToRad(origin.Lat))) * (180.0 / Math.PI);
-        return new Coord(origin.Lat + dLat, origin.Lng + dLng);
+        return new Coord(origin.Lat + dLat, NormalizeLongitude(origin.Lng + dLng));
+    }
+
+    /// <summary>
+    /// Wrap a longitude back into [-180, 180]. A loop centred near the antimeridian otherwise emits
+    /// values like -183.4, which are outside the legal domain and are rejected by the provider.
+    /// (Latitude needs no equivalent: <see cref="RouteValidation.MaxGenerationLatitude"/> keeps the
+    /// loop clear of the poles, where wrapping would also have to mirror the longitude.)
+    /// </summary>
+    private static double NormalizeLongitude(double lng)
+    {
+        var wrapped = (lng + 180.0) % 360.0;
+        if (wrapped < 0) wrapped += 360.0;
+        return wrapped - 180.0;
     }
 
     private static double DegToRad(double deg) => deg * Math.PI / 180.0;
