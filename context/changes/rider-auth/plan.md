@@ -685,28 +685,28 @@ than silently.
 
 #### Automated
 
-- [x] 1.1 Type checking passes: `npx tsc --noEmit`
-- [x] 1.2 Linting passes: `npm run lint`
+- [x] 1.1 Type checking passes: `npx tsc --noEmit` — 16e575f
+- [x] 1.2 Linting passes: `npm run lint` — 16e575f
 
 #### Manual
 
-- [x] 1.3 JWKS endpoint returns a non-empty `keys` array
-- [x] 1.4 App launches on an EAS dev build with no redbox and no missing-env crash
-- [x] 1.5 Web build still loads with native-only wiring skipped
+- [x] 1.3 JWKS endpoint returns a non-empty `keys` array — 16e575f
+- [x] 1.4 App launches on an EAS dev build with no redbox and no missing-env crash — 16e575f
+- [x] 1.5 Web build still loads with native-only wiring skipped — 16e575f
 
 ### Phase 2: Account tab + auth screens
 
 #### Automated
 
-- [ ] 2.1 Type checking passes: `npx tsc --noEmit`
-- [ ] 2.2 Linting passes: `npm run lint`
+- [x] 2.1 Type checking passes: `npx tsc --noEmit`
+- [x] 2.2 Linting passes: `npm run lint`
 
 #### Manual
 
-- [ ] 2.3 Sign-up with a new email lands directly in the signed-in state
-- [ ] 2.4 Force-quit and relaunch leaves the rider signed in
-- [ ] 2.5 Sign out returns to the form, and signing back in works
-- [ ] 2.6 A wrong password shows the mapped message, not a raw provider string
+- [x] 2.3 Sign-up with a new email lands directly in the signed-in state
+- [x] 2.4 Force-quit and relaunch leaves the rider signed in
+- [x] 2.5 Sign out returns to the form, and signing back in works
+- [x] 2.6 A wrong password shows the mapped message, not a raw provider string
 - [ ] 2.7 The Plan tab still generates a route while signed out
 
 ### Phase 3: Backend JWT verification + protected `GET /me`
