@@ -16,11 +16,16 @@ public sealed class OpenRouteServiceStitcher : IRouteStitcher
 {
     private readonly HttpClient _http;
     private readonly RouteStitchingOptions _options;
+    private readonly ILogger<OpenRouteServiceStitcher> _logger;
 
-    public OpenRouteServiceStitcher(HttpClient http, IOptions<RouteStitchingOptions> options)
+    public OpenRouteServiceStitcher(
+        HttpClient http,
+        IOptions<RouteStitchingOptions> options,
+        ILogger<OpenRouteServiceStitcher> logger)
     {
         _http = http;
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task<StitchedRoute> StitchAsync(RouteRequest request, CancellationToken ct)
@@ -29,12 +34,26 @@ public sealed class OpenRouteServiceStitcher : IRouteStitcher
         var coordinates = request.Waypoints.Select(w => new[] { w.Lng, w.Lat }).ToArray();
         var url = $"{_options.BaseUrl.TrimEnd('/')}/v2/directions/{_options.Profile}/geojson";
 
+        // `radiuses` widens the provider's search for a routable road near each waypoint. ORS wants
+        // one entry per coordinate; a single shared value is fine because the generated vertices
+        // benefit from the same tolerance the start needs. Omitted entirely at 0 so the provider's
+        // own default applies — see RouteStitchingOptions.SnapRadiusMeters.
+        object payload = _options.SnapRadiusMeters > 0
+            ? new
+            {
+                coordinates,
+                radiuses = Enumerable
+                    .Repeat((double)_options.SnapRadiusMeters, coordinates.Length)
+                    .ToArray(),
+            }
+            : new { coordinates };
+
         HttpResponseMessage response;
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, url)
             {
-                Content = JsonContent.Create(new { coordinates }),
+                Content = JsonContent.Create(payload),
             };
             if (!string.IsNullOrWhiteSpace(_options.ApiKey))
             {
@@ -67,6 +86,21 @@ public sealed class OpenRouteServiceStitcher : IRouteStitcher
         {
             if (!response.IsSuccessStatusCode)
             {
+                // Log the provider's own explanation before the response is discarded. ORS names
+                // the offending waypoint and the radius it searched ("Could not find point 0:
+                // 19.9373 50.0617 within a radius of 350.0 meters"), which is the one fact that
+                // separates "this start isn't near a road" from "these points don't connect".
+                // Without it, diagnosing a 422 means bisecting waypoints by hand from outside.
+                // Logged, not returned: the client contract stays status-code-only, and provider
+                // prose is operator diagnostics rather than rider-facing copy.
+                _logger.LogWarning(
+                    "Routing provider returned HTTP {Status} for {WaypointCount} waypoint(s) "
+                        + "at snap radius {SnapRadiusMeters} m. Provider response: {ProviderBody}",
+                    (int)response.StatusCode,
+                    request.Waypoints.Count,
+                    _options.SnapRadiusMeters,
+                    await ReadErrorBodyAsync(response, ct));
+
                 // ORS returns 404 when the waypoints can't be connected into a route.
                 if (response.StatusCode == HttpStatusCode.NotFound)
                 {
@@ -80,6 +114,27 @@ public sealed class OpenRouteServiceStitcher : IRouteStitcher
 
             var json = await response.Content.ReadAsStringAsync(ct);
             return ParseGeoJson(json);
+        }
+    }
+
+    /// <summary>
+    /// Read an error response body for logging. Never throws and never propagates cancellation:
+    /// a failure to read the explanation must not replace the real failure being reported. Capped
+    /// because a misconfigured proxy can answer with a full HTML page.
+    /// </summary>
+    private static async Task<string> ReadErrorBodyAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        const int maxChars = 500;
+
+        try
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            if (string.IsNullOrWhiteSpace(body)) return "(empty)";
+            return body.Length <= maxChars ? body : body[..maxChars] + "…(truncated)";
+        }
+        catch (Exception ex)
+        {
+            return $"(unreadable: {ex.GetType().Name})";
         }
     }
 

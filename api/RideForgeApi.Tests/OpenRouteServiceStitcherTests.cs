@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using RideForgeApi.Routing;
 
@@ -13,18 +15,46 @@ namespace RideForgeApi.Tests;
 public class OpenRouteServiceStitcherTests
 {
     private static OpenRouteServiceStitcher BuildProvider(
-        Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> responder)
+        Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> responder,
+        int? snapRadiusMeters = null)
     {
         var http = new HttpClient(new StubHandler(responder));
-        var options = Options.Create(new RouteStitchingOptions
+        var settings = new RouteStitchingOptions
         {
             Provider = "openrouteservice",
             ApiKey = "test-key",
             BaseUrl = "https://example.test",
             Profile = "driving-car",
-        });
-        return new OpenRouteServiceStitcher(http, options);
+        };
+        if (snapRadiusMeters is not null) settings.SnapRadiusMeters = snapRadiusMeters.Value;
+
+        return new OpenRouteServiceStitcher(
+            http, Options.Create(settings), NullLogger<OpenRouteServiceStitcher>.Instance);
     }
+
+    /// <summary>Capture the outbound request body so the tests can assert on what ORS receives.</summary>
+    private static OpenRouteServiceStitcher BuildCapturingProvider(
+        string responseBody, out Func<string?> capturedBody, int? snapRadiusMeters = null)
+    {
+        string? sent = null;
+        capturedBody = () => sent;
+        return BuildProvider(
+            (req, _) =>
+            {
+                sent = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return Json(HttpStatusCode.OK, responseBody);
+            },
+            snapRadiusMeters);
+    }
+
+    private const string MinimalRouteBody = """
+    {
+      "features": [{
+        "geometry": { "type": "LineString", "coordinates": [[19.94, 50.06], [20.10, 50.15]] },
+        "properties": { "summary": { "distance": 1.0, "duration": 1.0 } }
+      }]
+    }
+    """;
 
     private static readonly RouteRequest SampleRequest =
         new(new[] { new Coord(50.06, 19.94), new Coord(50.15, 20.10) });
@@ -148,6 +178,44 @@ public class OpenRouteServiceStitcherTests
         var ex = await Assert.ThrowsAsync<RouteStitchException>(
             () => provider.StitchAsync(SampleRequest, CancellationToken.None));
         Assert.Equal(StitchFailure.ProviderError, ex.Kind);
+    }
+
+    [Fact]
+    public async Task SnapRadius_IsSentAsOneRadiusPerWaypoint()
+    {
+        // ORS's `radiuses` is a per-coordinate array; a length mismatch is rejected outright.
+        var provider = BuildCapturingProvider(MinimalRouteBody, out var body, snapRadiusMeters: 1200);
+
+        await provider.StitchAsync(SampleRequest, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(body()!);
+        var radiuses = doc.RootElement.GetProperty("radiuses");
+        Assert.Equal(SampleRequest.Waypoints.Count, radiuses.GetArrayLength());
+        Assert.All(radiuses.EnumerateArray(), r => Assert.Equal(1200.0, r.GetDouble(), 3));
+    }
+
+    [Fact]
+    public async Task ZeroSnapRadius_OmitsRadiusesSoTheProviderDefaultApplies()
+    {
+        // The documented escape hatch: an ORS instance may cap the search radius below ours and
+        // reject the parameter outright, which would fail every request. Zero must send no
+        // `radiuses` key at all — not a zero-valued one, which would snap nothing.
+        var provider = BuildCapturingProvider(MinimalRouteBody, out var body, snapRadiusMeters: 0);
+
+        await provider.StitchAsync(SampleRequest, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(body()!);
+        Assert.False(doc.RootElement.TryGetProperty("radiuses", out _));
+        Assert.True(doc.RootElement.TryGetProperty("coordinates", out _));
+    }
+
+    [Fact]
+    public void DefaultSnapRadius_ExceedsTheProviderDefaultThatRejectedValidStarts()
+    {
+        // Regression guard for the reported bug: ORS searches 350 m by default, which is inside
+        // Kraków's ~400-500 m pedestrian Old Town, so a rider starting on Rynek Główny was told
+        // no route existed. Any default at or below 350 m silently reintroduces that failure.
+        Assert.True(new RouteStitchingOptions().SnapRadiusMeters > 350);
     }
 
     private sealed class StubHandler : HttpMessageHandler
