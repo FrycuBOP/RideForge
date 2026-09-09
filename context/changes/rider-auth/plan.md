@@ -698,24 +698,24 @@ than silently.
 
 #### Automated
 
-- [x] 2.1 Type checking passes: `npx tsc --noEmit`
-- [x] 2.2 Linting passes: `npm run lint`
+- [x] 2.1 Type checking passes: `npx tsc --noEmit` — 642f2ef
+- [x] 2.2 Linting passes: `npm run lint` — 642f2ef
 
 #### Manual
 
-- [x] 2.3 Sign-up with a new email lands directly in the signed-in state
-- [x] 2.4 Force-quit and relaunch leaves the rider signed in
-- [x] 2.5 Sign out returns to the form, and signing back in works
-- [x] 2.6 A wrong password shows the mapped message, not a raw provider string
-- [ ] 2.7 The Plan tab still generates a route while signed out
+- [x] 2.3 Sign-up with a new email lands directly in the signed-in state — 642f2ef
+- [x] 2.4 Force-quit and relaunch leaves the rider signed in — 642f2ef
+- [x] 2.5 Sign out returns to the form, and signing back in works — 642f2ef
+- [x] 2.6 A wrong password shows the mapped message, not a raw provider string — 642f2ef
+- [x] 2.7 The Plan tab still generates a route while signed out — 642f2ef
 
 ### Phase 3: Backend JWT verification + protected `GET /me`
 
 #### Automated
 
-- [ ] 3.1 Backend tests pass: `dotnet test api/RideForgeApi.slnx`
-- [ ] 3.2 Auth-boundary cases present and passing (401 for no/malformed/wrong-key/expired token, 200 for valid)
-- [ ] 3.3 Anonymous `POST /route/generate` regression test still passes
+- [x] 3.1 Backend tests pass: `dotnet test api/RideForgeApi.slnx`
+- [x] 3.2 Auth-boundary cases present and passing (401 for no/malformed/wrong-key/expired token, 200 for valid)
+- [x] 3.3 Anonymous `POST /route/generate` regression test still passes
 
 #### Manual
 

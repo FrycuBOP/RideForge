@@ -13,11 +13,11 @@ namespace RideForgeApi.Tests;
 /// directly. Plan criterion 2.3 was previously verified only by hand with curl; these tests make it
 /// re-run on every build. No network: the committed <c>appsettings.json</c> selects the fake provider.
 /// </summary>
-public class RouteGenerateEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public class RouteGenerateEndpointTests : IClassFixture<RideForgeApiFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly RideForgeApiFactory _factory;
 
-    public RouteGenerateEndpointTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public RouteGenerateEndpointTests(RideForgeApiFactory factory) => _factory = factory;
 
     [Fact]
     public async Task ValidRequest_Returns200_WithClosedNonEmptyGeometry()
@@ -88,7 +88,10 @@ public class RouteGenerateEndpointTests : IClassFixture<WebApplicationFactory<Pr
     {
         // A typo used to fall through to the fake stitcher and serve straight-line polygons at
         // 1/DetourFactor of the requested distance, with a 200 and no indication anything was wrong.
-        using var factory = new WebApplicationFactory<Program>()
+        // Built on the shared factory so the only thing wrong with this host is the provider name.
+        // A bare factory would also trip the blank-Supabase:ProjectUrl throw, and the assertion
+        // below would then be passing for whichever check happens to run first in Program.cs.
+        using var factory = new RideForgeApiFactory()
             .WithWebHostBuilder(b => b.UseSetting("RouteStitching:Provider", "openrouteserivce"));
 
         var ex = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());

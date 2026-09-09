@@ -1,3 +1,10 @@
+using System.Security.Claims;
+
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Tokens;
+
+using RideForgeApi.Auth;
 using RideForgeApi.Routing;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -56,6 +63,59 @@ switch (resolvedProvider)
             "Use 'openrouteservice' or 'fake'.");
 }
 
+// Supabase auth (S-05). The API trusts nothing the client says about who it is: it verifies the
+// rider's access token against the project's published public keys on every request.
+var supabaseOptions = builder.Configuration
+    .GetSection(SupabaseAuthOptions.SectionName)
+    .Get<SupabaseAuthOptions>() ?? new SupabaseAuthOptions();
+
+builder.Services.Configure<SupabaseAuthOptions>(
+    builder.Configuration.GetSection(SupabaseAuthOptions.SectionName));
+
+// Same fail-fast reasoning as the stitching provider above. A blank project URL would boot fine
+// and then 401 every authenticated request with nothing in the logs pointing at config.
+if (string.IsNullOrWhiteSpace(supabaseOptions.ProjectUrl))
+{
+    throw new InvalidOperationException(
+        "Supabase:ProjectUrl is not set (supply it via the Supabase__ProjectUrl environment " +
+        "variable, e.g. https://<project-ref>.supabase.co).");
+}
+
+// Key resolution goes straight at the JWKS document rather than through OIDC discovery: the JWKS
+// URL is what Supabase documents, so this does not depend on the project also serving a
+// .well-known/openid-configuration. ConfigurationManager caches the key set and refreshes it on
+// its own schedule, so this costs one outbound call on cold start, not one per request.
+//
+// Note this endpoint serves an EMPTY key array while a project is still on legacy HS256 signing.
+// If every token suddenly fails to validate, check that asymmetric signing keys are enabled in the
+// Supabase dashboard before looking anywhere else. The fix is never to fall back to a shared
+// secret — that is the failure mode this design exists to remove.
+var jwksManager = new ConfigurationManager<JsonWebKeySet>(
+    supabaseOptions.JwksUri,
+    new JwksRetriever(),
+    new HttpDocumentRetriever());
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = supabaseOptions.Authority,
+            ValidateAudience = true,
+            ValidAudience = supabaseOptions.Audience,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            // IssuerSigningKeyResolver has no async overload, so the cached fetch is awaited
+            // inline. After the first call this is a dictionary read, not I/O.
+            IssuerSigningKeyResolver = (_, _, _, _) =>
+                jwksManager.GetConfigurationAsync(CancellationToken.None)
+                    .GetAwaiter().GetResult().GetSigningKeys(),
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
 // Railway injects PORT; ASP.NET Core does not pick it up automatically. When PORT is set
@@ -73,7 +133,21 @@ app.Logger.LogInformation("Route stitching provider resolved to '{Provider}'.", 
 
 app.UseCors();
 
+// Bearer tokens, not cookies — so the AllowAnyOrigin policy above stays valid. An Authorization
+// header is not a "credential" in the CORS sense, which is what AllowAnyOrigin conflicts with.
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "rideforge-api" }));
+
+// The rider's identity as *this API* sees it, which is the point: it proves the token validated
+// server-side rather than only being well-formed on the device. No token, or a token this service
+// cannot verify, is a 401 from the middleware — the handler only ever runs for a valid one.
+app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
+{
+    id = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub"),
+    email = user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("email"),
+})).RequireAuthorization();
 
 // Stitch an ordered waypoint list into a road-following route. Failure classes map to
 // distinct HTTP statuses so the mobile client (which reads only the status code, not the
