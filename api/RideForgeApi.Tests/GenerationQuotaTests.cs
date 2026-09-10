@@ -1,15 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Claims;
-using System.Security.Cryptography;
-
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.JsonWebTokens;
-using Microsoft.IdentityModel.Tokens;
 
 namespace RideForgeApi.Tests;
 
@@ -34,67 +25,36 @@ public class GenerationQuotaTests : IClassFixture<GenerationQuotaTests.QuotaTest
     public GenerationQuotaTests(QuotaTestFactory factory) => _factory = factory;
 
     /// <summary>
-    /// Runs the real limiter at the committed limit of 2/hour, with the signing key swapped for a
-    /// local one so an authenticated case can be exercised without reaching Supabase.
+    /// Runs the real limiter at the committed limit, with the hermetic token setup inherited from
+    /// <see cref="AuthenticatedApiFactory"/>.
+    /// <para>
+    /// Deliberately no <c>UseSetting</c> for the quota: this suite reads the COMMITTED
+    /// configuration. Supplying "2" here would make every case below assert against a value the
+    /// test itself provided, leaving the suite green if someone raised <c>appsettings.json</c> or
+    /// the <c>GenerationQuotaOptions</c> default to 20 — which is precisely the regression it
+    /// exists to catch.
+    /// </para>
     /// </summary>
-    public class QuotaTestFactory : RideForgeApiFactory
-    {
-        private readonly RSA _signingRsa = RSA.Create(2048);
-
-        public SecurityKey SigningKey => new RsaSecurityKey(_signingRsa) { KeyId = "rideforge-quota-test" };
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-
-            // Assert against the shipped numbers rather than test-only ones: the value of this
-            // suite is that it fails when someone changes the default from 2 without meaning to.
-            builder.UseSetting("GenerationQuota:PermitLimit", "2");
-            builder.UseSetting("GenerationQuota:WindowMinutes", "60");
-
-            builder.ConfigureTestServices(services =>
-            {
-                services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
-                {
-                    options.Authority = null;
-                    options.MetadataAddress = string.Empty;
-                    options.ConfigurationManager = null;
-
-                    options.TokenValidationParameters.IssuerSigningKeyResolver = null;
-                    options.TokenValidationParameters.IssuerSigningKey = SigningKey;
-                });
-            });
-        }
-
-        public string CreateToken()
-        {
-            var descriptor = new SecurityTokenDescriptor
-            {
-                Issuer = Issuer,
-                Audience = Audience,
-                Subject = new ClaimsIdentity(
-                    [new Claim("sub", Guid.NewGuid().ToString()), new Claim("email", "rider@example.com")]),
-                IssuedAt = DateTime.UtcNow.AddMinutes(-1),
-                NotBefore = DateTime.UtcNow.AddMinutes(-1),
-                Expires = DateTime.UtcNow.AddHours(1),
-                SigningCredentials = new SigningCredentials(SigningKey, SecurityAlgorithms.RsaSha256),
-            };
-
-            return new JsonWebTokenHandler().CreateToken(descriptor);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            base.Dispose(disposing);
-            if (disposing) _signingRsa.Dispose();
-        }
-    }
+    public class QuotaTestFactory : AuthenticatedApiFactory;
 
     /// <summary>A generation request the endpoint accepts, so the only variable is the quota.</summary>
     private static Task<HttpResponseMessage> Generate(HttpClient client) =>
         client.PostAsJsonAsync(
             "/route/generate",
             new { start = new { lat = 50.0647, lng = 19.9450 }, distanceKm = 40.0 });
+
+    /// <summary>A stitch request the endpoint accepts, so the only variable is the quota.</summary>
+    private static Task<HttpResponseMessage> Stitch(HttpClient client) =>
+        client.PostAsJsonAsync(
+            "/route/stitch",
+            new
+            {
+                waypoints = new[]
+                {
+                    new { lat = 50.0647, lng = 19.9450 },
+                    new { lat = 50.0700, lng = 19.9500 },
+                },
+            });
 
     /// <summary>
     /// A client identified as a specific install, or as none at all when
@@ -156,7 +116,7 @@ public class GenerationQuotaTests : IClassFixture<GenerationQuotaTests.QuotaTest
 
         var signedIn = ClientForInstall(installId);
         signedIn.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", _factory.CreateToken());
+            new AuthenticationHeaderValue("Bearer", _factory.CreateToken(subject: Guid.NewGuid().ToString()));
 
         // Three more, comfortably past the anonymous ceiling. One would not prove the absence of a
         // limit; it would only prove the limit is at least three.
@@ -188,7 +148,7 @@ public class GenerationQuotaTests : IClassFixture<GenerationQuotaTests.QuotaTest
     }
 
     [Fact]
-    public async Task UnlimitedEndpoints_AreNotAffectedByAnExhaustedAllowance()
+    public async Task Health_StaysReachable_WhenTheAllowanceIsExhausted()
     {
         var client = ClientForInstall(Guid.NewGuid().ToString());
 
@@ -196,20 +156,34 @@ public class GenerationQuotaTests : IClassFixture<GenerationQuotaTests.QuotaTest
         await Generate(client);
         Assert.Equal(HttpStatusCode.TooManyRequests, (await Generate(client)).StatusCode);
 
-        // The policy is attached to /route/generate alone. A stray global limiter, or a fallback
-        // policy, would take these down with it and the app would look offline rather than capped.
+        // A stray global limiter, or a fallback policy applied to everything, would take /health
+        // down with it — and the app's connectivity badge would read "offline" for a rider who is
+        // merely capped. The two states must stay distinguishable.
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
+    }
 
-        var stitch = await client.PostAsJsonAsync(
-            "/route/stitch",
-            new
-            {
-                waypoints = new[]
-                {
-                    new { lat = 50.0647, lng = 19.9450 },
-                    new { lat = 50.0700, lng = 19.9500 },
-                },
-            });
-        Assert.Equal(HttpStatusCode.OK, stitch.StatusCode);
+    [Fact]
+    public async Task RouteStitch_SharesTheGenerationAllowance()
+    {
+        // /route/stitch makes the identical billed provider call, so it is limited under the same
+        // policy AND the same partition — one budget across both endpoints, not one each.
+        // Exhausting the allowance through /route/generate must therefore close /route/stitch too;
+        // if it did not, the endpoint would be a free unmetered path to the same provider.
+        var client = ClientForInstall(Guid.NewGuid().ToString());
+
+        await Generate(client);
+        await Generate(client);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await Stitch(client)).StatusCode);
+    }
+
+    [Fact]
+    public async Task RouteStitch_IsReachable_WhileAllowanceRemains()
+    {
+        // The other half of the pair: the endpoint still works, it is merely metered. Without this,
+        // the test above would pass just as happily if /route/stitch were broken or removed.
+        var client = ClientForInstall(Guid.NewGuid().ToString());
+
+        Assert.Equal(HttpStatusCode.OK, (await Stitch(client)).StatusCode);
     }
 }

@@ -1,15 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Security.Cryptography;
 
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
 namespace RideForgeApi.Tests;
@@ -35,74 +29,21 @@ public class MeEndpointTests : IClassFixture<MeEndpointTests.AuthTestFactory>
     public MeEndpointTests(AuthTestFactory factory) => _factory = factory;
 
     /// <summary>
-    /// Swaps the keys Supabase publishes for one generated here. Everything else about validation —
-    /// issuer, audience, lifetime, signature — stays exactly as <c>Program.cs</c> configures it,
-    /// which is the only reason these results say anything about production.
+    /// Adds the one thing only this suite needs: a well-formed key the API has never heard of.
+    /// The trusted key, the token minting, and the hermetic JwtBearer wiring all live in
+    /// <see cref="AuthenticatedApiFactory"/>, shared with the quota suite.
     /// </summary>
-    public class AuthTestFactory : RideForgeApiFactory
+    public class AuthTestFactory : AuthenticatedApiFactory
     {
-        private readonly RSA _signingRsa = RSA.Create(2048);
         private readonly RSA _impostorRsa = RSA.Create(2048);
-
-        /// <summary>The key the API will trust, standing in for the project's published public key.</summary>
-        public SecurityKey SigningKey => new RsaSecurityKey(_signingRsa) { KeyId = "rideforge-test" };
 
         /// <summary>A well-formed key the API has never heard of.</summary>
         public SecurityKey ImpostorKey => new RsaSecurityKey(_impostorRsa) { KeyId = "impostor" };
 
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-
-            builder.ConfigureTestServices(services =>
-            {
-                services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
-                {
-                    // Belt and braces against a future edit to Program.cs quietly reintroducing a
-                    // network fetch: with these cleared there is nothing left to fetch from.
-                    options.Authority = null;
-                    options.MetadataAddress = string.Empty;
-                    options.ConfigurationManager = null;
-
-                    options.TokenValidationParameters.IssuerSigningKeyResolver = null;
-                    options.TokenValidationParameters.IssuerSigningKey = SigningKey;
-                });
-            });
-        }
-
-        /// <summary>
-        /// Mints a token the way Supabase would, so each test only has to say what is wrong with it.
-        /// </summary>
-        public string CreateToken(
-            SecurityKey? key = null,
-            string subject = "3f1c9c1e-6d5a-4a1b-9a2f-0f7d8e5b4c31",
-            string email = "rider@example.com",
-            DateTime? expires = null,
-            string? issuer = null,
-            string? audience = null)
-        {
-            var descriptor = new SecurityTokenDescriptor
-            {
-                Issuer = issuer ?? Issuer,
-                Audience = audience ?? Audience,
-                Subject = new ClaimsIdentity([new Claim("sub", subject), new Claim("email", email)]),
-                IssuedAt = DateTime.UtcNow.AddMinutes(-1),
-                NotBefore = DateTime.UtcNow.AddMinutes(-1),
-                Expires = expires ?? DateTime.UtcNow.AddHours(1),
-                SigningCredentials = new SigningCredentials(key ?? SigningKey, SecurityAlgorithms.RsaSha256),
-            };
-
-            return new JsonWebTokenHandler().CreateToken(descriptor);
-        }
-
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            if (disposing)
-            {
-                _signingRsa.Dispose();
-                _impostorRsa.Dispose();
-            }
+            if (disposing) _impostorRsa.Dispose();
         }
     }
 

@@ -32,7 +32,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
     let cancelled = false;
 
     supabase.auth.getSession().then(({ data }) => {
-      // A later onAuthStateChange may already have delivered a fresher session; don't clobber it.
+      // Guards unmount, not ordering: this only skips setting state on a provider that is already
+      // gone. It does NOT prevent a slow storage read from overwriting a fresher session that
+      // `onAuthStateChange` delivered first — that race is left open deliberately, because both
+      // paths await the same client initialisation and the Account screen renders only a spinner
+      // while `isRestoring`. Making the ordering claim true would need a flag set by the
+      // subscription below.
       if (cancelled) return;
       setSession(data.session);
       setIsRestoring(false);

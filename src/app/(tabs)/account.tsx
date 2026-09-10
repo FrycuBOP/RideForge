@@ -55,6 +55,8 @@ export default function AccountScreen() {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Not an error: the one success path that leaves the rider signed out and needing to act.
+  const [notice, setNotice] = useState<string | null>(null);
 
   const credentialsValid = email.trim().length > 0 && password.length > 0;
   const canSubmit = credentialsValid && !pending;
@@ -66,11 +68,12 @@ export default function AccountScreen() {
    */
   async function submit(action: 'signUp' | 'signIn') {
     setError(null);
+    setNotice(null);
     setPending(true);
 
     try {
       const credentials = { email: email.trim(), password };
-      const { error: authError } =
+      const { data, error: authError } =
         action === 'signUp'
           ? await supabase.auth.signUp(credentials)
           : await supabase.auth.signInWithPassword(credentials);
@@ -78,6 +81,17 @@ export default function AccountScreen() {
       if (authError) {
         setError(authErrorMessage(authError));
         return;
+      }
+
+      // A sign-up with no session is a *success* that leaves the rider signed out: Supabase answers
+      // this way when the project requires email confirmation. Without this branch the screen would
+      // clear the password, render nothing, and look like a dead button.
+      //
+      // This project disables confirmations (see the plan's phase 1), so under the intended
+      // configuration this never fires. It is here because nothing in this repo enforces that
+      // dashboard setting — flipping it must not silently break sign-up.
+      if (action === 'signUp' && data.session === null) {
+        setNotice('Account created. Check your email to confirm it, then sign in.');
       }
 
       // Only clear on success: a rider who mistyped their password keeps the email they entered.
@@ -89,6 +103,7 @@ export default function AccountScreen() {
 
   async function handleSignOut() {
     setError(null);
+    setNotice(null);
     setPending(true);
 
     try {
@@ -254,6 +269,12 @@ export default function AccountScreen() {
             {error !== null && (
               <ThemedText type="small" style={styles.errorText}>
                 {error}
+              </ThemedText>
+            )}
+
+            {notice !== null && (
+              <ThemedText type="small" themeColor="textSecondary">
+                {notice}
               </ThemedText>
             )}
 

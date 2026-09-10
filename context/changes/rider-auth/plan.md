@@ -650,6 +650,17 @@ than silently.
 - **The installation identifier is client-controlled.** Clearing app data, reinstalling, or sending a
   different header value resets the allowance. This is a deliberate choice — a speed bump, not a
   security control. If abuse appears, the escalation path is the IP fallback or a real identity.
+  > Sharpened after the implementation review (2026-09-10): the escalation path named above does
+  > **not** engage for this case. The IP fallback only catches a missing or malformed header; a
+  > caller sending a fresh well-formed GUID per request gets a full allowance every time and never
+  > touches the IP partition. Closing it needs a partition key the client cannot choose — an
+  > IP-keyed limiter chained alongside the per-install one. Deliberately not done here.
+- **The quota's partition dictionary grows with client-supplied keys.** Every distinct install id
+  caches its own limiter, and a fixed-window limiter that has spent a permit is not evicted until
+  its window replenishes — so with a 60-minute window, live entries scale with request rate rather
+  than with rider count. Combined with the bypass above this is a zero-cost path to memory pressure
+  on a small single-instance container. Not mitigated; the same chained IP limiter would bound both.
+  Considered acceptable only because the endpoint is currently unadvertised and traffic is nil.
 - **The IP fallback collides under carrier NAT.** Riders sharing a mobile carrier's egress IP share
   one allowance. It only applies to requests missing a valid installation header, so the blast radius
   is small, but a rider hitting it will see an unexplained limit.

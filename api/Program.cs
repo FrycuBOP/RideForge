@@ -15,8 +15,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // The Expo web build is a browser app served from a different origin than this API, so
 // cross-origin responses need CORS headers or the browser blocks the JS from reading them.
-// MVP: allow any origin (public, unauthenticated read API). Scope this to the real web
-// origin(s) once auth/cookies land (FR-008) — AllowAnyOrigin cannot be combined with credentials.
+// MVP: allow any origin. Auth has since landed (FR-008) and this policy deliberately stayed as it
+// is: RideForge authenticates with bearer tokens, which are not "credentials" in the CORS sense, so
+// the conflict that forces a narrow origin list never arises. A hostile origin cannot read a
+// signed-in rider's data, because nothing is sent automatically — no cookie, no Authorization
+// header — without the rider's own token, which that origin does not have.
+// Revisit only if cookie-based auth is ever introduced.
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -110,6 +114,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = supabaseOptions.Audience,
             ValidateIssuerSigningKey = true,
             ValidateLifetime = true,
+            // Stated rather than inferred from whatever the JWKS happens to serve. Algorithm
+            // confusion is not reachable today — IdentityModel refuses an HMAC algorithm against an
+            // RSA/EC key — so this is hardening against a future key-set surprise, not a hole being
+            // closed. Both algorithms Supabase issues asymmetric keys for are listed.
+            ValidAlgorithms = [SecurityAlgorithms.RsaSha256, SecurityAlgorithms.EcdsaSha256],
             // IssuerSigningKeyResolver has no async overload, so the cached fetch is awaited
             // inline. After the first call this is a dictionary read, not I/O.
             IssuerSigningKeyResolver = (_, _, _, _) =>
@@ -229,6 +238,11 @@ app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
 // Stitch an ordered waypoint list into a road-following route. Failure classes map to
 // distinct HTTP statuses so the mobile client (which reads only the status code, not the
 // body) can tell them apart: 400 bad input, 422 no route, 502 provider error, 504 timeout.
+//
+// Rate-limited under the same policy as /route/generate, and deliberately sharing one allowance
+// rather than getting its own: this endpoint makes the identical billed provider call, and the
+// cost argument that justifies the generation quota applies to it verbatim. No shipped client
+// calls it, so a shared budget costs real riders nothing and leaves no unmetered path open.
 app.MapPost("/route/stitch", async (StitchRequestDto dto, IRouteStitcher stitcher, CancellationToken ct) =>
 {
     var error = RouteValidation.Validate(dto);
@@ -252,7 +266,7 @@ app.MapPost("/route/stitch", async (StitchRequestDto dto, IRouteStitcher stitche
         };
         return Results.Problem(detail: ex.Message, statusCode: status);
     }
-});
+}).RequireRateLimiting(GenerationQuotaPolicy);
 
 // Generate a loop route from a start point + requested distance, then stitch it into a
 // road-following route. RideForge's own (curviness-agnostic for S-01) waypoint generator feeds
@@ -302,10 +316,19 @@ app.Run();
 /// Which counter an anonymous caller is charged against: their install id when they sent a usable
 /// one, their IP otherwise.
 /// <para>
-/// The GUID parse is what makes a missing or junk header cost something instead of buying a free
-/// pass. Partitioning on the raw header value would let any caller mint a fresh allowance per
-/// request just by changing a string; falling through to the IP means the cheapest way to defeat
-/// the quota is also the most annoying one.
+/// The GUID parse buys less than it looks like. It stops a <em>missing or malformed</em> header
+/// from being a free pass — those callers fall through to the shared IP partition. It does not
+/// stop a caller who sends a fresh, well-formed GUID on every request: each one lands on a brand
+/// new partition with a full allowance, and never reaches the IP fallback at all. That is a
+/// deliberate, accepted limit (the identifier is a speed bump, not a security control — see the
+/// plan's Open Risks), not something this parse defends against.
+/// </para>
+/// <para>
+/// The consequence worth remembering is memory, not just billing: every distinct key caches its
+/// own limiter, and a fixed-window limiter that has spent a permit is not evicted until its window
+/// replenishes. With a 60-minute window, live entries scale with request rate rather than with
+/// anything an operator controls. Bounding this needs a partition the client cannot choose — an
+/// IP-keyed limiter chained alongside — which is out of scope here and recorded in Open Risks.
 /// </para>
 /// <para>
 /// The prefixes keep the two namespaces from colliding — an IP is not a GUID today, but the keys
