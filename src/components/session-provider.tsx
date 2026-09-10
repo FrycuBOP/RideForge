@@ -1,4 +1,5 @@
 import type { Session } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useEffect, useState, type PropsWithChildren } from 'react';
 
 import { supabase } from '@/lib/supabase';
@@ -23,6 +24,7 @@ export const SessionContext = createContext<SessionState | null>(null);
  * the persisted session, then follows `onAuthStateChange` (sign-in, sign-out, token refresh).
  */
 export function SessionProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [isRestoring, setIsRestoring] = useState(true);
 
@@ -38,16 +40,23 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setIsRestoring(false);
+
+      // Authenticated query results are keyed by endpoint, not by rider, so they survive a sign-out
+      // on their own. Drop them here or the next rider to sign in on this device sees the previous
+      // rider's identity until the query happens to refetch.
+      if (event === 'SIGNED_OUT') {
+        queryClient.removeQueries({ queryKey: ['me'] });
+      }
     });
 
     return () => {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [queryClient]);
 
   return (
     <SessionContext.Provider value={{ session, user: session?.user ?? null, isRestoring }}>

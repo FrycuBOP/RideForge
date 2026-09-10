@@ -10,18 +10,46 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ApiError } from '@/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useMeQuery } from '@/hooks/use-me-query';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { authErrorMessage } from '@/lib/auth-errors';
 import { supabase } from '@/lib/supabase';
 
+/**
+ * Map a failed `/me` lookup to rider-facing copy. A 401 gets its own branch: it does not mean the
+ * server is unwell, it means this device is holding a token the server no longer accepts, and the
+ * only thing that fixes it is signing in again.
+ */
+function meErrorMessage(error: ApiError): string {
+  switch (error.kind) {
+    case 'timeout':
+      return 'The server took too long to confirm your account.';
+    case 'network':
+      return 'Can’t reach the server to confirm your account. Check your connection.';
+    case 'parse':
+      return 'Got an unexpected response from the server.';
+    case 'http':
+      if (error.status === 401) {
+        return 'Your session is no longer valid. Sign out, then sign in again.';
+      }
+      return 'The server had a problem confirming your account. Please try again.';
+    default:
+      return 'Something went wrong confirming your account.';
+  }
+}
+
 export default function AccountScreen() {
   const theme = useTheme();
   const safeAreaInsets = useSafeAreaInsets();
   const { user, isRestoring } = useSession();
+  // The identity the backend resolved from the token — the only proof the JWT actually validated
+  // server-side. Idle (never fetched) while signed out; see useMeQuery's `enabled`.
+  const me = useMeQuery();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -117,10 +145,34 @@ export default function AccountScreen() {
                 SIGNED IN AS
               </ThemedText>
               <ThemedView type="backgroundElement" style={styles.card}>
-                <ThemedText type="default" style={styles.cardText}>
-                  {user.email ?? 'Unknown email'}
-                </ThemedText>
+                {/* Deliberately the backend's answer, not `user.email`: the local session says who
+                    this device believes it is, `/me` says who the server accepted the token as. */}
+                {me.isPending ? (
+                  <ThemedView type="backgroundElement" style={styles.cardLoading}>
+                    <ActivityIndicator color={theme.textSecondary} />
+                  </ThemedView>
+                ) : me.isError ? (
+                  <ThemedText type="default" style={[styles.cardText, styles.errorText]}>
+                    {meErrorMessage(me.error)}
+                  </ThemedText>
+                ) : (
+                  <ThemedText type="default" style={styles.cardText}>
+                    {me.data.email ?? 'No email on record'}
+                  </ThemedText>
+                )}
               </ThemedView>
+              {me.isError && (
+                <Pressable
+                  onPress={() => me.refetch()}
+                  disabled={me.isFetching}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry confirming your account"
+                  accessibilityState={{ disabled: me.isFetching, busy: me.isFetching }}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {me.isFetching ? 'Retrying…' : 'Tap to try again'}
+                  </ThemedText>
+                </Pressable>
+              )}
             </ThemedView>
 
             <ThemedText type="small" themeColor="textSecondary">
@@ -277,6 +329,11 @@ const styles = StyleSheet.create({
   cardText: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
+  },
+  // Matches cardText's vertical rhythm so the card doesn't resize when /me resolves.
+  cardLoading: {
+    paddingVertical: Spacing.three,
+    alignItems: 'center',
   },
   input: {
     paddingHorizontal: Spacing.three,

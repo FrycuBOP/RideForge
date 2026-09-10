@@ -713,29 +713,29 @@ than silently.
 
 #### Automated
 
-- [x] 3.1 Backend tests pass: `dotnet test api/RideForgeApi.slnx`
-- [x] 3.2 Auth-boundary cases present and passing (401 for no/malformed/wrong-key/expired token, 200 for valid)
-- [x] 3.3 Anonymous `POST /route/generate` regression test still passes
+- [x] 3.1 Backend tests pass: `dotnet test api/RideForgeApi.slnx` — d3a3431
+- [x] 3.2 Auth-boundary cases present and passing (401 for no/malformed/wrong-key/expired token, 200 for valid) — d3a3431
+- [x] 3.3 Anonymous `POST /route/generate` regression test still passes — d3a3431
 
 #### Manual
 
-- [ ] 3.4 Deployed `GET /me` returns 401 with no token
-- [ ] 3.5 Deployed `GET /me` returns 200 and the correct email for a real token
-- [ ] 3.6 Startup fails loudly when `Supabase__ProjectUrl` is unset
+- [x] 3.4 Deployed `GET /me` returns 401 with no token — d3a3431
+- [x] 3.5 Deployed `GET /me` returns 200 and the correct email for a real token — d3a3431
+- [x] 3.6 Startup fails loudly when `Supabase__ProjectUrl` is unset — d3a3431
 
 ### Phase 4: Client ↔ backend auth wiring
 
 #### Automated
 
-- [ ] 4.1 Type checking passes: `npx tsc --noEmit`
-- [ ] 4.2 Linting passes: `npm run lint`
+- [x] 4.1 Type checking passes: `npx tsc --noEmit`
+- [x] 4.2 Linting passes: `npm run lint`
 
 #### Manual
 
-- [ ] 4.3 Signed-in Account screen shows the email returned by `/me`
-- [ ] 4.4 Switching accounts updates the displayed identity with no stale value
-- [ ] 4.5 Airplane mode shows the network message and no crash
-- [ ] 4.6 Generation from the Plan tab still works while signed out
+- [x] 4.3 Signed-in Account screen shows the email returned by `/me`
+- [x] 4.4 Switching accounts updates the displayed identity with no stale value
+- [x] 4.5 Airplane mode shows the network message and no crash
+- [x] 4.6 Generation from the Plan tab still works while signed out
 
 ### Phase 5: Anonymous generation quota
 

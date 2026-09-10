@@ -5,5 +5,7 @@ export { request } from './client';
 export type { RequestOptions } from './client';
 export { getHealth } from './health';
 export type { HealthResponse } from './health';
+export { getMe } from './me';
+export type { MeResponse } from './me';
 export { generateRoute } from './route';
 export type { GenerateRequest, GeneratedRoute, GeoPoint } from './route';
