@@ -741,15 +741,15 @@ than silently.
 
 #### Automated
 
-- [x] 5.1 Backend tests pass: `dotnet test api/RideForgeApi.slnx`
-- [x] 5.2 Quota tests cover 429 exhaustion, per-install independence, authenticated exemption, missing-header fallback
-- [x] 5.3 Type checking passes: `npx tsc --noEmit`
-- [x] 5.4 Linting passes: `npm run lint`
+- [x] 5.1 Backend tests pass: `dotnet test api/RideForgeApi.slnx` — 274c123
+- [x] 5.2 Quota tests cover 429 exhaustion, per-install independence, authenticated exemption, missing-header fallback — 274c123
+- [x] 5.3 Type checking passes: `npx tsc --noEmit` — 274c123
+- [x] 5.4 Linting passes: `npm run lint` — 274c123
 
 #### Manual
 
-- [x] 5.5 Signed out, the third generation within an hour shows the quota message
-- [x] 5.6 Signing in and retrying immediately succeeds
-- [x] 5.7 A signed-in rider can generate more than twice in an hour
-- [ ] 5.8 Two devices on different networks each get their own allowance
-- [x] 5.9 PRD and roadmap reflect the new requirement
+- [x] 5.5 Signed out, the third generation within an hour shows the quota message — 274c123
+- [x] 5.6 Signing in and retrying immediately succeeds — 274c123
+- [x] 5.7 A signed-in rider can generate more than twice in an hour — 274c123
+- [x] 5.8 Two devices on different networks each get their own allowance — 274c123
+- [x] 5.9 PRD and roadmap reflect the new requirement — 274c123

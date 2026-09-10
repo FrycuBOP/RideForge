@@ -1,7 +1,7 @@
 ---
 change_id: rider-auth
 title: Rider auth + anonymous generation quota
-status: implementing
+status: implemented
 created: 2026-09-08
 updated: 2026-09-10
 archived_at: null
@@ -28,3 +28,19 @@ Fixed by opting `generateRoute` into `auth: true`.
 No automated test could have caught this: the backend's exemption test passes because it presents a
 token itself, and there is no frontend test runner (deliberate, per `test-plan.md` §4). The gap is
 in the wiring between the two, which nothing in the current harness exercises.
+
+How 5.8 was actually verified (it reads "two devices on different networks", which is a proxy for
+the real risk — a globally shared counter):
+
+- Against deployed Railway, two freshly generated install ids run back to back each got
+  `200, 200, 429`, and re-running the first stayed `429`. A global counter would have answered
+  `429` to the second install's very first request, since the first had just exhausted the
+  allowance. Independence is therefore proven directly, and concurrently, rather than inferred
+  from two handsets.
+- On a real dev build, switching networks did *not* reset the allowance — correct, because the
+  partition key is the install id, not the IP. A reset there would have been the bug.
+
+Residual, accepted: two callers sending **no** install header, on different networks, were never
+compared. That is the IP-fallback partition, which the app itself never reaches (it always sends
+the header), so it only governs curl and tampered clients. One network was checked and behaved
+(`200, 200, 429`); the cross-network half of that narrow path is untested.
