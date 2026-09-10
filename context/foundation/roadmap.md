@@ -3,7 +3,7 @@ project: RideForge
 version: 1
 status: draft
 created: 2026-08-11
-updated: 2026-09-08
+updated: 2026-09-10
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -35,7 +35,7 @@ RideForge generuje motocyklową trasę rekreacyjną z punktu startu i preferencj
 | S-02  | curviness-shaping        | ustawić poziom krętości i dostać trasę, która go respektuje      | S-01            | US-01, FR-003                     | proposed |
 | S-03  | pace-shaping             | ustawić charakter fast/touristic wpływający na trasę             | S-01            | FR-004                            | blocked  |
 | S-04  | gpx-download             | pobrać wygenerowaną trasę jako poprawny plik GPX                 | S-01            | US-01, FR-007                     | proposed |
-| S-05  | rider-auth               | założyć konto i zalogować się                                    | F-01            | FR-008                            | in-progress |
+| S-05  | rider-auth               | założyć konto i zalogować się                                    | F-01            | FR-008, FR-013                    | in-progress |
 | S-06  | save-route               | zapisać wygenerowaną trasę na swoim koncie                       | S-05, S-01      | FR-009                            | proposed |
 | S-07  | saved-routes-list        | zobaczyć listę swoich zapisanych tras                            | S-06            | FR-010                            | proposed |
 | S-08  | poi-waypoints            | dołączyć punkty POI (kawiarnie, widoki, wsie) jako waypointy     | S-01, S-04      | FR-011                            | proposed |
@@ -153,13 +153,13 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 - **Outcome:** jeździec zakłada konto i loguje się (wprowadza minimalny scaffold auth przy pierwszym slice'ie, który go potrzebuje).
 - **Change ID:** rider-auth
-- **PRD refs:** FR-008
+- **PRD refs:** FR-008, FR-013
 - **Prerequisites:** F-01
 - **Parallel with:** S-01, S-02, S-03, S-04
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Nice-to-have (drugorzędne Kryterium sukcesu); sekwencjonowany po ścieżce koniecznej, bo `top_blocker: time` każe najpierw domknąć rdzeń generowania. Nie parkowany, bo to realny drugorzędny cel produktu.
-- **Rozszerzenie zakresu (2026-09-08, na etapie planowania):** slice obejmuje też **limit generowania dla anonimowych** — 2 trasy na godzinę, egzekwowane server-side; zalogowani bez limitu. To właśnie limit daje kontu powód istnienia. Generowanie nadal nie wymaga logowania (US-01). Wymaganie nie pochodzi z PRD — faza 5 planu dopisuje je do `prd.md`.
+- **Rozszerzenie zakresu (2026-09-08, na etapie planowania; wdrożone 2026-09-10):** slice obejmuje też **limit generowania dla anonimowych** — 2 trasy na godzinę, egzekwowane server-side; zalogowani bez limitu. To właśnie limit daje kontu powód istnienia. Generowanie nadal nie wymaga logowania (US-01). Wymaganie nie pochodziło z PRD — powstało na etapie planowania i zostało dopisane do `prd.md` jako **FR-013** w fazie 5. Licznik jest in-memory i jednoinstancyjny (resetuje się przy redeployu); limity są konfiguracją (`GenerationQuota__PermitLimit`, `GenerationQuota__WindowMinutes`), nie stałymi.
 - **Status:** in-progress
 
 ### S-06: Zapis wygenerowanej trasy

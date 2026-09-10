@@ -22,7 +22,7 @@ public class RouteGenerateEndpointTests : IClassFixture<RideForgeApiFactory>
     [Fact]
     public async Task ValidRequest_Returns200_WithClosedNonEmptyGeometry()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClientForFreshInstall();
 
         var response = await client.PostAsJsonAsync(
             "/route/generate",
@@ -42,7 +42,7 @@ public class RouteGenerateEndpointTests : IClassFixture<RideForgeApiFactory>
     [Fact]
     public async Task Response_UsesTheCamelCaseWireContractTheClientConsumes()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClientForFreshInstall();
 
         var response = await client.PostAsJsonAsync(
             "/route/generate",
@@ -64,7 +64,7 @@ public class RouteGenerateEndpointTests : IClassFixture<RideForgeApiFactory>
     [InlineData(100_000.0)]
     public async Task OutOfRangeDistance_Returns400(double distanceKm)
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClientForFreshInstall();
 
         var response = await client.PostAsJsonAsync(
             "/route/generate",
@@ -76,7 +76,7 @@ public class RouteGenerateEndpointTests : IClassFixture<RideForgeApiFactory>
     [Fact]
     public async Task MissingStart_Returns400()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClientForFreshInstall();
 
         var response = await client.PostAsJsonAsync("/route/generate", new { distanceKm = 40.0 });
 
@@ -101,7 +101,7 @@ public class RouteGenerateEndpointTests : IClassFixture<RideForgeApiFactory>
     [Fact]
     public async Task OutOfRangeStart_Returns400()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateClientForFreshInstall();
 
         var response = await client.PostAsJsonAsync(
             "/route/generate",

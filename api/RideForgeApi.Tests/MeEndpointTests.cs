@@ -216,7 +216,10 @@ public class MeEndpointTests : IClassFixture<MeEndpointTests.AuthTestFactory>
         // a door that was deliberately left open: US-01 says a rider generates a route without an
         // account, and a blanket RequireAuthorization or an authenticated fallback policy would
         // break that while every test above stayed green.
-        var response = await ClientWithToken(null).PostAsJsonAsync(
+        //
+        // A fresh install id keeps the anonymous *quota* out of the way — this test is about
+        // authentication, and a 429 here would look like the door had closed when it had not.
+        var response = await _factory.CreateClientForFreshInstall().PostAsJsonAsync(
             "/route/generate",
             new { start = new { lat = 50.0647, lng = 19.9450 }, distanceKm = 40.0 });
 

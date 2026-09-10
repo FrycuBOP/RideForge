@@ -3,6 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as Location from 'expo-location';
+import { Link } from 'expo-router';
 
 import { ApiError } from '@/api';
 import { BackendStatus } from '@/components/backend-status';
@@ -35,6 +36,11 @@ function geocodeErrorMessage(reason: GeocodeFailureReason): string {
   }
 }
 
+/** Did this failure hit the anonymous generation quota? Signing in is the only fix. */
+function isQuotaError(error: ApiError): boolean {
+  return error.kind === 'http' && error.status === 429;
+}
+
 /** Map a normalized API failure to a rider-facing message (FR-005). */
 function planErrorMessage(error: ApiError): string {
   switch (error.kind) {
@@ -45,6 +51,9 @@ function planErrorMessage(error: ApiError): string {
     case 'parse':
       return 'Got an unexpected response from the server.';
     case 'http':
+      if (error.status === 429) {
+        return 'You’ve used your free rides for this hour. Sign in to plan as many as you like.';
+      }
       if (error.status === 422) {
         return 'Couldn’t build a route from there. Try a different start or distance.';
       }
@@ -249,11 +258,20 @@ export default function PlanScreen() {
           </ThemedView>
 
           {(geocodeError !== null || generate.isError) && (
-            <ThemedText type="small" style={styles.errorText}>
-              {geocodeError !== null
-                ? geocodeErrorMessage(geocodeError)
-                : planErrorMessage(generate.error!)}
-            </ThemedText>
+            <ThemedView style={styles.section}>
+              <ThemedText type="small" style={styles.errorText}>
+                {geocodeError !== null
+                  ? geocodeErrorMessage(geocodeError)
+                  : planErrorMessage(generate.error!)}
+              </ThemedText>
+              {/* The quota message names an action, so give the rider that action here rather than
+                  leaving them to work out that "sign in" means the Account tab. */}
+              {geocodeError === null && generate.isError && isQuotaError(generate.error!) && (
+                <Link href="/account">
+                  <ThemedText type="linkPrimary">Go to Account</ThemedText>
+                </Link>
+              )}
+            </ThemedView>
           )}
 
           <Pressable

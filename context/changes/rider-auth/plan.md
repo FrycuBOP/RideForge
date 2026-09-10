@@ -727,29 +727,29 @@ than silently.
 
 #### Automated
 
-- [x] 4.1 Type checking passes: `npx tsc --noEmit`
-- [x] 4.2 Linting passes: `npm run lint`
+- [x] 4.1 Type checking passes: `npx tsc --noEmit` — a66176e
+- [x] 4.2 Linting passes: `npm run lint` — a66176e
 
 #### Manual
 
-- [x] 4.3 Signed-in Account screen shows the email returned by `/me`
-- [x] 4.4 Switching accounts updates the displayed identity with no stale value
-- [x] 4.5 Airplane mode shows the network message and no crash
-- [x] 4.6 Generation from the Plan tab still works while signed out
+- [x] 4.3 Signed-in Account screen shows the email returned by `/me` — a66176e
+- [x] 4.4 Switching accounts updates the displayed identity with no stale value — a66176e
+- [x] 4.5 Airplane mode shows the network message and no crash — a66176e
+- [x] 4.6 Generation from the Plan tab still works while signed out — a66176e
 
 ### Phase 5: Anonymous generation quota
 
 #### Automated
 
-- [ ] 5.1 Backend tests pass: `dotnet test api/RideForgeApi.slnx`
-- [ ] 5.2 Quota tests cover 429 exhaustion, per-install independence, authenticated exemption, missing-header fallback
-- [ ] 5.3 Type checking passes: `npx tsc --noEmit`
-- [ ] 5.4 Linting passes: `npm run lint`
+- [x] 5.1 Backend tests pass: `dotnet test api/RideForgeApi.slnx`
+- [x] 5.2 Quota tests cover 429 exhaustion, per-install independence, authenticated exemption, missing-header fallback
+- [x] 5.3 Type checking passes: `npx tsc --noEmit`
+- [x] 5.4 Linting passes: `npm run lint`
 
 #### Manual
 
-- [ ] 5.5 Signed out, the third generation within an hour shows the quota message
-- [ ] 5.6 Signing in and retrying immediately succeeds
-- [ ] 5.7 A signed-in rider can generate more than twice in an hour
+- [x] 5.5 Signed out, the third generation within an hour shows the quota message
+- [x] 5.6 Signing in and retrying immediately succeeds
+- [x] 5.7 A signed-in rider can generate more than twice in an hour
 - [ ] 5.8 Two devices on different networks each get their own allowance
-- [ ] 5.9 PRD and roadmap reflect the new requirement
+- [x] 5.9 PRD and roadmap reflect the new requirement

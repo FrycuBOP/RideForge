@@ -1,10 +1,14 @@
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
 
 using RideForgeApi.Auth;
+using RideForgeApi.RateLimiting;
 using RideForgeApi.Routing;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -116,6 +120,71 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// Anonymous generation quota (S-05). Each generation is a billed provider call, so the ceiling is
+// enforced here rather than in the client, where it would be one devtools away from gone.
+
+// Partition key for callers the quota does not apply to. A single shared key is correct here —
+// GetNoLimiter counts nothing, so every signed-in rider sharing it costs one dictionary entry
+// rather than one per rider.
+const string AuthenticatedPartitionKey = "authenticated";
+
+// Name of the rate-limiting policy applied to POST /route/generate.
+const string GenerationQuotaPolicy = "generation-quota";
+
+// Client-supplied install identifier; written by src/api/client.ts.
+const string InstallHeaderName = "X-RideForge-Install";
+
+var quotaOptions = builder.Configuration
+    .GetSection(GenerationQuotaOptions.SectionName)
+    .Get<GenerationQuotaOptions>() ?? new GenerationQuotaOptions();
+
+builder.Services.Configure<GenerationQuotaOptions>(
+    builder.Configuration.GetSection(GenerationQuotaOptions.SectionName));
+
+// Railway terminates TLS at its edge and forwards, so Connection.RemoteIpAddress is the proxy's
+// address on every request. Without this the IP fallback below partitions the entire internet onto
+// one counter and the quota becomes global — two generations per hour for all riders combined.
+//
+// KnownIPNetworks/KnownProxies must be cleared because Railway's proxy is not on loopback and its
+// address is not fixed; the default allow-list would drop the header unread. That does mean a
+// caller can spoof X-Forwarded-For, which is consistent with what this quota is: a speed bump on
+// honest riders, not a security control. The header is only consulted for callers that did not
+// send a usable install id anyway.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+builder.Services.AddRateLimiter(limiter =>
+{
+    limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    limiter.AddPolicy(GenerationQuotaPolicy, httpContext =>
+    {
+        // The whole point of the quota: signing in removes it. This is why the limiter has to run
+        // AFTER UseAuthentication — before it, HttpContext.User is unpopulated, every caller looks
+        // anonymous, and signed-in riders get limited too. That bug passes every test that does not
+        // present a real token.
+        if (httpContext.User.Identity?.IsAuthenticated == true)
+        {
+            return RateLimitPartition.GetNoLimiter(AuthenticatedPartitionKey);
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            AnonymousPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = quotaOptions.PermitLimit,
+                Window = TimeSpan.FromMinutes(quotaOptions.WindowMinutes),
+                // Queueing would hold a rider's request open until the window rolls — up to an hour.
+                // Rejecting immediately lets the app show the sign-in prompt instead.
+                QueueLimit = 0,
+            });
+    });
+});
+
 var app = builder.Build();
 
 // Railway injects PORT; ASP.NET Core does not pick it up automatically. When PORT is set
@@ -131,12 +200,20 @@ app.Urls.Add($"http://{host}:{port}");
 // indistinguishable from a working one until you measure the route length.
 app.Logger.LogInformation("Route stitching provider resolved to '{Provider}'.", resolvedProvider);
 
+// First in the pipeline, before anything reads the client IP. See the ForwardedHeadersOptions
+// comment above for why the quota depends on this.
+app.UseForwardedHeaders();
+
 app.UseCors();
 
 // Bearer tokens, not cookies — so the AllowAnyOrigin policy above stays valid. An Authorization
 // header is not a "credential" in the CORS sense, which is what AllowAnyOrigin conflicts with.
 app.UseAuthentication();
 app.UseAuthorization();
+
+// After authentication, deliberately: the partition function reads HttpContext.User to decide
+// whether the caller is exempt.
+app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "rideforge-api" }));
 
@@ -217,9 +294,36 @@ app.MapPost("/route/generate", async (GenerateRequestDto dto, IRouteStitcher sti
         };
         return Results.Problem(detail: ex.Message, statusCode: status);
     }
-});
+}).RequireRateLimiting(GenerationQuotaPolicy);
 
 app.Run();
+
+/// <summary>
+/// Which counter an anonymous caller is charged against: their install id when they sent a usable
+/// one, their IP otherwise.
+/// <para>
+/// The GUID parse is what makes a missing or junk header cost something instead of buying a free
+/// pass. Partitioning on the raw header value would let any caller mint a fresh allowance per
+/// request just by changing a string; falling through to the IP means the cheapest way to defeat
+/// the quota is also the most annoying one.
+/// </para>
+/// <para>
+/// The prefixes keep the two namespaces from colliding — an IP is not a GUID today, but the keys
+/// share one dictionary and the cost of saying so is three characters.
+/// </para>
+/// </summary>
+static string AnonymousPartitionKey(HttpContext context)
+{
+    if (context.Request.Headers.TryGetValue(InstallHeaderName, out var header)
+        && Guid.TryParse(header.ToString(), out var installId))
+    {
+        return $"install:{installId}";
+    }
+
+    // A null RemoteIpAddress is possible (in-memory test transports, some socket configurations).
+    // Everyone in that bucket shares one allowance, which is the conservative direction to err.
+    return $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+}
 
 /// <summary>
 /// Exposed so the test project can boot the real pipeline with

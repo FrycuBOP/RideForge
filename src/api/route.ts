@@ -21,9 +21,19 @@ export type GeneratedRoute = {
  * Generate a loop route from a start point + requested distance. A POST with a side-effecting,
  * billed provider call — drive it from a mutation, not a query. Uses the default 30s timeout
  * (NFR-01). Throws a normalized {@link import('./errors').ApiError} on any failure.
+ *
+ * `auth: true` even though the endpoint accepts anonymous callers (US-01) and does not require
+ * authorization. The token is not what grants access here — it is what lifts the anonymous
+ * generation quota (FR-013). Without it the backend sees every caller as anonymous, the exemption
+ * for signed-in riders is unreachable from the app, and signing in changes nothing. When there is
+ * no session `request` simply omits the header, so anonymous generation is unaffected.
  */
 export async function generateRoute(req: GenerateRequest): Promise<GeneratedRoute> {
-  const body = await request<GeneratedRoute>('/route/generate', { method: 'POST', body: req });
+  const body = await request<GeneratedRoute>('/route/generate', {
+    method: 'POST',
+    body: req,
+    auth: true,
+  });
 
   // `request` casts the parsed JSON to T without checking it, so a 200 carrying the wrong shape (a
   // proxy interstitial, a backend regression) would otherwise reach the map screen and crash it on

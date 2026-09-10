@@ -28,6 +28,36 @@ public class RideForgeApiFactory : WebApplicationFactory<Program>
     /// <summary>The <c>aud</c> claim Supabase stamps on a signed-in rider's access token.</summary>
     public const string Audience = "authenticated";
 
+    /// <summary>
+    /// Install identifier the mobile client stamps on every request; the anonymous generation quota
+    /// partitions its counters on it.
+    /// </summary>
+    public const string InstallHeaderName = "X-RideForge-Install";
+
+    /// <summary>
+    /// A client identifying as an install no other test has used.
+    /// <para>
+    /// Any test that calls <c>POST /route/generate</c> needs this, whatever it is actually
+    /// asserting. The quota limits by install id and falls back to the caller's IP when there is
+    /// none — and every in-memory test client shares one IP — so a suite of plain
+    /// <c>CreateClient()</c> callers spends a single 2-request allowance between them and whichever
+    /// test runs third gets a 429 instead of the status it asked about. The counters are
+    /// process-wide (one host per <c>IClassFixture</c>), so this cannot be undone between tests;
+    /// it has to be avoided by never sharing a partition in the first place.
+    /// </para>
+    /// <para>
+    /// This also matches the real client, which always sends the header (see
+    /// <c>src/api/client.ts</c>). Tests about the quota itself set the header themselves rather
+    /// than using this.
+    /// </para>
+    /// </summary>
+    public HttpClient CreateClientForFreshInstall()
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add(InstallHeaderName, Guid.NewGuid().ToString());
+        return client;
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("Supabase:ProjectUrl", ProjectUrl);

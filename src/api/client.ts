@@ -1,3 +1,4 @@
+import { getInstallId } from '@/lib/install-id';
 import { supabase } from '@/lib/supabase';
 
 import { API_BASE_URL, DEFAULT_TIMEOUT_MS } from './config';
@@ -32,6 +33,11 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  // Sent on every request, authenticated or not: it is what lets the backend count an anonymous
+  // rider's generations against this install rather than against a shared carrier IP. The existing
+  // CORS policy allows any header, so the web build needs no backend change to send it.
+  headers['X-RideForge-Install'] = await getInstallId();
 
   if (auth) {
     // Read the session rather than the provider's React state: `request` is called from query
