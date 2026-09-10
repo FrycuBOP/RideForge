@@ -1,7 +1,7 @@
 ---
 change_id: rider-auth
 title: Rider auth + anonymous generation quota
-status: implemented
+status: impl_reviewed
 created: 2026-09-08
 updated: 2026-09-10
 archived_at: null
