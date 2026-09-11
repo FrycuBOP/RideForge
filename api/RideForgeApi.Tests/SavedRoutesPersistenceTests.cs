@@ -1,0 +1,172 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json.Nodes;
+
+using Microsoft.EntityFrameworkCore;
+
+using RideForgeApi.SavedRoutes;
+
+namespace RideForgeApi.Tests;
+
+/// <summary>
+/// Pins the rules of <c>POST /saved-routes</c> that live in the database: who owns a row, what makes
+/// a save a repeat, and whether the ride comes back the way it went in.
+/// <para>
+/// Every case here is constraint or storage behaviour, which is exactly what a stubbed context would
+/// fake — so these run against a real Postgres, opt-in via <c>RIDEFORGE_TEST_DB</c> (see
+/// <see cref="PostgresApiFactory"/>), and are reported as skipped without it.
+/// </para>
+/// <para>
+/// The oracle is the save-route plan's decisions, not the endpoint's output: the owner is the token's
+/// <c>sub</c>; uniqueness is per owner, so the same client route id from two riders is two rows; a
+/// repeat returns the first row unchanged; the name follows the naming rule.
+/// </para>
+/// </summary>
+public class SavedRoutesPersistenceTests : IClassFixture<PostgresApiFactory>
+{
+    private readonly PostgresApiFactory _factory;
+
+    public SavedRoutesPersistenceTests(PostgresApiFactory factory) => _factory = factory;
+
+    private HttpClient ClientFor(Guid rider)
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", _factory.CreateToken(subject: rider.ToString()));
+        return client;
+    }
+
+    private static async Task<(HttpStatusCode Status, SavedRouteResponseDto Body)> Save(
+        HttpClient client, JsonObject payload)
+    {
+        var response = await client.PostAsJsonAsync("/saved-routes", payload);
+        var body = await response.Content.ReadFromJsonAsync<SavedRouteResponseDto>();
+        Assert.NotNull(body);
+        return (response.StatusCode, body);
+    }
+
+    private Task<int> RowCount(Guid clientRouteId) =>
+        _factory.QueryAsync(db => db.SavedRoutes.CountAsync(r => r.ClientRouteId == clientRouteId));
+
+    [PostgresFact]
+    public async Task FirstSave_Returns201_AndStoresTheRideForTheTokenRider()
+    {
+        var rider = _factory.NewRider();
+
+        var (status, body) = await Save(ClientFor(rider), SavedRoutePayload.Valid());
+
+        Assert.Equal(HttpStatusCode.Created, status);
+        Assert.Equal("Loop from Kraków · 42 km", body.Name);
+
+        var row = await _factory.QueryAsync(db => db.SavedRoutes.AsNoTracking().SingleAsync(r => r.Id == body.Id));
+        Assert.Equal(rider, row.OwnerId);
+        Assert.Equal("Kraków", row.StartLabel);
+        Assert.Equal(40.0, row.RequestedDistanceKm);
+        Assert.Equal(SavedRoutePayload.DistanceMeters, row.DistanceMeters);
+    }
+
+    [PostgresFact]
+    public async Task Geometry_IsStoredInOrder_WithLatAndLngUnswapped()
+    {
+        var (_, body) = await Save(ClientFor(_factory.NewRider()), SavedRoutePayload.Valid());
+
+        // Read the jsonb column as text, not through EF: an axis swap or renamed key made
+        // consistently on write and read would round-trip through the mapping and look fine, while
+        // anything else reading the column (the list slice, SQL, an export) would get it wrong.
+        var stored = await _factory.QueryAsync(db => db.Database
+            .SqlQuery<string>($"SELECT geometry::text AS \"Value\" FROM rideforge.saved_routes WHERE id = {body.Id}")
+            .SingleAsync());
+        var points = JsonNode.Parse(stored)!.AsArray();
+
+        Assert.Equal(SavedRoutePayload.Geometry.Length, points.Count);
+        for (var i = 0; i < points.Count; i++)
+        {
+            Assert.Equal(SavedRoutePayload.Geometry[i].Lat, points[i]!["lat"]!.GetValue<double>());
+            Assert.Equal(SavedRoutePayload.Geometry[i].Lng, points[i]!["lng"]!.GetValue<double>());
+        }
+    }
+
+    [PostgresFact]
+    public async Task RepeatSave_BySameRider_Returns200_WithTheSameId_AndLeavesOneRow()
+    {
+        var rider = _factory.NewRider();
+        var clientRouteId = Guid.NewGuid();
+
+        var first = await Save(ClientFor(rider), SavedRoutePayload.Valid(clientRouteId));
+        var repeat = await Save(ClientFor(rider), SavedRoutePayload.Valid(clientRouteId));
+
+        Assert.Equal(HttpStatusCode.Created, first.Status);
+        Assert.Equal(HttpStatusCode.OK, repeat.Status);
+        Assert.Equal(first.Body.Id, repeat.Body.Id);
+        Assert.Equal(1, await RowCount(clientRouteId));
+    }
+
+    [PostgresFact]
+    public async Task SameClientRouteId_FromAnotherRider_IsANewRow_AndTheFirstRidersRowIsUntouched()
+    {
+        // The IDOR guard on the write path. With uniqueness on client_route_id alone, rider B's save
+        // would take the repeat branch and be handed rider A's row.
+        var riderA = _factory.NewRider();
+        var riderB = _factory.NewRider();
+        var clientRouteId = Guid.NewGuid();
+
+        var saveA = await Save(ClientFor(riderA), SavedRoutePayload.Valid(clientRouteId));
+
+        var payloadB = SavedRoutePayload.Valid(clientRouteId);
+        payloadB["startLabel"] = "Zakopane";
+        var saveB = await Save(ClientFor(riderB), payloadB);
+
+        Assert.Equal(HttpStatusCode.Created, saveB.Status);
+        Assert.NotEqual(saveA.Body.Id, saveB.Body.Id);
+        Assert.Equal("Loop from Zakopane · 42 km", saveB.Body.Name);
+
+        var rowA = await _factory.QueryAsync(db => db.SavedRoutes.AsNoTracking().SingleAsync(r => r.Id == saveA.Body.Id));
+        Assert.Equal(riderA, rowA.OwnerId);
+        Assert.Equal("Kraków", rowA.StartLabel);
+        Assert.Equal(2, await RowCount(clientRouteId));
+    }
+
+    [PostgresFact]
+    public async Task OwnerNamedInTheBody_IsIgnored_TheTokenRiderOwnsTheRow()
+    {
+        var rider = _factory.NewRider();
+        var victim = _factory.NewRider();
+
+        var payload = SavedRoutePayload.Valid();
+        payload["ownerId"] = victim.ToString();
+        var (status, body) = await Save(ClientFor(rider), payload);
+
+        Assert.Equal(HttpStatusCode.Created, status);
+        var owner = await _factory.QueryAsync(db =>
+            db.SavedRoutes.Where(r => r.Id == body.Id).Select(r => r.OwnerId).SingleAsync());
+        Assert.Equal(rider, owner);
+        Assert.False(await _factory.QueryAsync(db => db.SavedRoutes.AnyAsync(r => r.OwnerId == victim)));
+    }
+
+    [PostgresFact]
+    public async Task RepeatSave_WithADifferentPayload_ReturnsTheOriginalRow_Unchanged()
+    {
+        // First write wins. A repeat is a retry of the same save, so whatever it carries must not
+        // overwrite what was stored.
+        var rider = _factory.NewRider();
+        var clientRouteId = Guid.NewGuid();
+
+        var first = await Save(ClientFor(rider), SavedRoutePayload.Valid(clientRouteId));
+
+        var changed = SavedRoutePayload.Valid(clientRouteId);
+        changed["startLabel"] = "Zakopane";
+        changed["distanceMeters"] = 88_000.0;
+        changed["geometry"] = SavedRoutePayload.Points(3);
+        var repeat = await Save(ClientFor(rider), changed);
+
+        Assert.Equal(HttpStatusCode.OK, repeat.Status);
+        Assert.Equal(first.Body, repeat.Body);
+        Assert.Equal("Loop from Kraków · 42 km", repeat.Body.Name);
+
+        var row = await _factory.QueryAsync(db => db.SavedRoutes.AsNoTracking().SingleAsync(r => r.Id == first.Body.Id));
+        Assert.Equal("Kraków", row.StartLabel);
+        Assert.Equal(SavedRoutePayload.DistanceMeters, row.DistanceMeters);
+        Assert.Equal(SavedRoutePayload.Geometry.Length, row.Geometry.Count);
+    }
+}

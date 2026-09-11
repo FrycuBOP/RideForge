@@ -42,3 +42,22 @@ forgotten, and code that needs a newer schema would then 500 every save.
 - **Tool manifest** lives at the repo root (`dotnet-tools.json`, .NET 10 SDK default), not `.config/`.
 - **1.4 (local Postgres apply) deferred** — no local Postgres; the first real apply is the Railway
   pre-deploy against Supabase (1.5). Revisit when phase 2 brings a local database.
+
+### 2026-09-11 — Phase 2 decisions made during implementation
+
+- **2.2 / 2.4 deferred (with 1.4).** Still no local Postgres. The six `[PostgresFact]` tests are
+  written and report as skipped; the deployed save (2.6/2.7) is the real-database check for now.
+  Run them with `RIDEFORGE_TEST_DB` set as soon as a local Postgres exists (test-plan §6.1.1).
+- **Stitched-distance ceiling added** (`SavedRouteValidation.MaxDistanceMeters` = 10,000 km). The
+  plan only said "finite and > 0"; without an upper bound a value like 1e300 would produce a
+  300-digit name that overflows `name varchar(120)`. Nothing real comes near it.
+- **EF failure events demoted to Debug** in `Program.cs` (`ConnectionError`, `CommandError`,
+  `SaveChangesFailed`, `QueryIterationFailed`). EF logs Npgsql's raw exception, which names the host,
+  and the plan says no connection detail reaches a log line. The endpoint logs its own sanitized
+  warning (exception types, socket error, SQLSTATE + server message). A hermetic test checks the
+  log sink; it fails if the demotion is removed.
+- **A valid token whose `sub` is not a UUID → 401.** The plan didn't specify this case.
+- **Naming cut:** 40 characters of label are kept, trailing whitespace trimmed, then `…` is added,
+  and a cut never splits a surrogate pair. Kilometres round halves away from zero (42.5 → 43).
+- **Repeat detection matches the constraint name** (`ux_saved_routes_owner_client_route`), not just
+  SQLSTATE 23505, so a different unique violation can never be answered with an existing row.

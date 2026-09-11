@@ -633,26 +633,26 @@ order would crash-loop the current code.
 
 #### Automated
 
-- [x] 1.1 Backend builds: `dotnet build api/RideForgeApi.slnx`
-- [x] 1.2 Existing suite still passes with the placeholder connection string
-- [x] 1.3 Migration generates and the tool resolves via the manifest
+- [x] 1.1 Backend builds: `dotnet build api/RideForgeApi.slnx` — a81ea02
+- [x] 1.2 Existing suite still passes with the placeholder connection string — a81ea02
+- [x] 1.3 Migration generates and the tool resolves via the manifest — a81ea02
 - [ ] 1.4 Migration applies cleanly to a local Postgres
 
 #### Manual
 
-- [x] 1.5 Migration applied to Supabase; table in `rideforge` with RLS on, nothing in `public`
-- [x] 1.6 Anon-key Data API request cannot read the table
-- [x] 1.7 `rideforge_api` can select from the table (0 rows, no permission error)
-- [x] 1.8 Railway deploy boots; `/health` and anonymous generation still work
-- [x] 1.9 Local startup with the connection string unset fails loudly
+- [x] 1.5 Migration applied to Supabase; table in `rideforge` with RLS on, nothing in `public` — a81ea02
+- [x] 1.6 Anon-key Data API request cannot read the table — a81ea02
+- [x] 1.7 `rideforge_api` can select from the table (0 rows, no permission error) — a81ea02
+- [x] 1.8 Railway deploy boots; `/health` and anonymous generation still work — a81ea02
+- [x] 1.9 Local startup with the connection string unset fails loudly — a81ea02
 
 ### Phase 2: `POST /saved-routes` + tests (backend)
 
 #### Automated
 
-- [ ] 2.1 Hermetic suite passes with no database configured
+- [x] 2.1 Hermetic suite passes with no database configured
 - [ ] 2.2 Postgres suite passes against a local database
-- [ ] 2.3 Postgres tests report as skipped when `RIDEFORGE_TEST_DB` is unset
+- [x] 2.3 Postgres tests report as skipped when `RIDEFORGE_TEST_DB` is unset
 - [ ] 2.4 Per-owner uniqueness, idempotent repeat, owner-from-token, and geometry round-trip cases present and passing
 
 #### Manual

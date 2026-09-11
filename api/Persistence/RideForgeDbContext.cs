@@ -17,6 +17,12 @@ public sealed class RideForgeDbContext(DbContextOptions<RideForgeDbContext> opti
 
     public const string MigrationsHistoryTable = "__EFMigrationsHistory";
 
+    /// <summary>
+    /// The per-owner unique index on saved routes. Named so the save endpoint can tell a repeat save
+    /// (this constraint) from any other unique violation.
+    /// </summary>
+    public const string OwnerClientRouteIndex = "ux_saved_routes_owner_client_route";
+
     public DbSet<SavedRoute> SavedRoutes => Set<SavedRoute>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -51,7 +57,7 @@ public sealed class RideForgeDbContext(DbContextOptions<RideForgeDbContext> opti
             // an id rider A already used down the conflict branch — and hand B rider A's row.
             route.HasIndex(r => new { r.OwnerId, r.ClientRouteId })
                 .IsUnique()
-                .HasDatabaseName("ux_saved_routes_owner_client_route");
+                .HasDatabaseName(OwnerClientRouteIndex);
         });
     }
 }

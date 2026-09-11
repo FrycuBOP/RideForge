@@ -153,6 +153,25 @@ relevant rollout phase ships; before that, it reads "TBD — see §3 Phase N."
 - **Run locally**: `dotnet test`.
 - (Established convention; Phase 1 extends it — expect refinements then.)
 
+#### 6.1.1 Adding a real-Postgres test (backend)
+
+- **When**: the rule lives in the database — a constraint, a per-owner unique index, what `jsonb`
+  stores. A stubbed context would fake exactly that. Everything else stays hermetic (see
+  `SavedRoutesEndpointTests`, which points at a dead port so a request that slips validation shows
+  up as 503, not a pass).
+- **How**: mark the test `[PostgresFact]` and take `IClassFixture<PostgresApiFactory>`. The fixture
+  applies the migrations once, gives out signed-in riders via `NewRider()` and deletes their rows
+  when it is done. `QueryAsync` reads the database directly; use raw SQL when the storage shape
+  itself is the thing under test.
+- **Ids**: every test mints its own riders and client route ids. Never share rows across tests.
+- **Run locally**: `RIDEFORGE_TEST_DB="Host=localhost;Port=5432;Database=rideforge_tests;Username=postgres;Password=…" dotnet test api/RideForgeApi.slnx`
+  against a disposable local Postgres, connected as its owner (the migration creates the
+  `rideforge_api` role). Never point it at Supabase.
+- **Gate**: ad hoc. With the variable unset these tests report as *skipped*, not passed — watch the
+  skipped count. The owner connection bypasses RLS, so a missing RLS policy for `rideforge_api` is
+  only caught by a deployed save.
+- **Reference test**: `api/RideForgeApi.Tests/SavedRoutesPersistenceTests.cs`.
+
 ### 6.2 Adding a contract / decode test (ORS boundary)
 
 - TBD — see §3 Phase 1 (ORS drift + `[lng,lat]` axis decode, Risks #2/#3).

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace RideForgeApi.Routing;
 
 /// <summary>Input validation for the stitch endpoint. Extracted so it is unit-testable.</summary>
@@ -16,6 +18,15 @@ public static class RouteValidation
     public const double MaxGenerationLatitude = 85.0;
 
     /// <summary>
+    /// The coordinate-range rule every endpoint shares: lat -90..90, lng -180..180, no NaN. A null
+    /// point (a JSON <c>null</c> inside an array) is out of range rather than a crash.
+    /// </summary>
+    public static bool IsInRange([NotNullWhen(true)] Coord? c) =>
+        c is not null
+        && !double.IsNaN(c.Lat) && !double.IsNaN(c.Lng)
+        && c.Lat >= -90 && c.Lat <= 90 && c.Lng >= -180 && c.Lng <= 180;
+
+    /// <summary>
     /// Validates an incoming generate request. Returns a human-readable error message when the
     /// request is invalid (→ endpoint responds 400), or <c>null</c> when it is well-formed.
     /// </summary>
@@ -26,14 +37,12 @@ public static class RouteValidation
             return "A start location is required.";
         }
 
-        var c = dto.Start;
-        if (double.IsNaN(c.Lat) || double.IsNaN(c.Lng)
-            || c.Lat < -90 || c.Lat > 90 || c.Lng < -180 || c.Lng > 180)
+        if (!IsInRange(dto.Start))
         {
             return "Start is out of range (lat -90..90, lng -180..180).";
         }
 
-        if (Math.Abs(c.Lat) > MaxGenerationLatitude)
+        if (Math.Abs(dto.Start.Lat) > MaxGenerationLatitude)
         {
             return $"Start is too close to a pole for loop generation (max latitude {MaxGenerationLatitude}).";
         }
@@ -60,9 +69,7 @@ public static class RouteValidation
 
         for (var i = 0; i < dto.Waypoints.Count; i++)
         {
-            var c = dto.Waypoints[i];
-            if (double.IsNaN(c.Lat) || double.IsNaN(c.Lng)
-                || c.Lat < -90 || c.Lat > 90 || c.Lng < -180 || c.Lng > 180)
+            if (!IsInRange(dto.Waypoints[i]))
             {
                 return $"Waypoint {i} is out of range (lat -90..90, lng -180..180).";
             }
