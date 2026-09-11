@@ -2,12 +2,15 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using RideForgeApi.SavedRoutes;
 
@@ -165,6 +168,40 @@ public class SavedRoutesEndpointTests : IClassFixture<SavedRoutesEndpointTests.U
         // included, across every test in this class.
         Assert.DoesNotContain(_factory.Logs, line => line.Contains(UnreachableDatabaseFactory.DatabaseHost));
         Assert.DoesNotContain(_factory.Logs, line => line.Contains(UnreachableDatabaseFactory.DatabasePassword));
+    }
+
+    [Fact]
+    public void SuccessWireContract_IsTheOneTheClientConsumes()
+    {
+        // A successful save needs a database, so its shape is asserted by SavedRoutesPersistenceTests
+        // — which skip unless RIDEFORGE_TEST_DB is set, and nothing sets it. That leaves the *shape*
+        // of a 201/200 covered by nothing that runs: a renamed property or a naming policy would keep
+        // this suite green while the client's response guard (src/api/saved-routes.ts) turned every
+        // successful save into "unexpected response". Serializing through the host's own configured
+        // options is the half of that contract a test can hold without Postgres.
+        var options = _factory.Services
+            .GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
+
+        var json = JsonSerializer.Serialize(
+            new SavedRouteResponseDto(Guid.NewGuid(), "Loop from Kraków · 42 km", DateTimeOffset.UtcNow),
+            options);
+
+        Assert.Contains("\"id\"", json);
+        Assert.Contains("\"name\"", json);
+        Assert.Contains("\"createdAt\"", json);
+
+        // The other direction: these are the names the client sends.
+        var request = JsonSerializer.Deserialize<SaveRouteRequestDto>(
+            SavedRoutePayload.Valid().ToJsonString(), options);
+
+        Assert.NotNull(request);
+        Assert.NotNull(request.ClientRouteId);
+        Assert.NotNull(request.Start);
+        Assert.NotNull(request.StartLabel);
+        Assert.NotNull(request.RequestedDistanceKm);
+        Assert.NotNull(request.Geometry);
+        Assert.NotNull(request.DistanceMeters);
+        Assert.NotNull(request.DurationSeconds);
     }
 
     /// <summary>Collects each log line, with its exception rendered in full, as the host emits it.</summary>

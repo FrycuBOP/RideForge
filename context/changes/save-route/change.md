@@ -1,7 +1,7 @@
 ---
 change_id: save-route
 title: Save route
-status: implemented
+status: impl_reviewed
 created: 2026-09-11
 updated: 2026-09-12
 archived_at: null
@@ -77,3 +77,53 @@ warn about them, and that warning is accurate.
   not a temporary gap. Per-owner uniqueness, idempotency, owner-from-token and the geometry
   round-trip are pinned only by code review and the deployed smoke test until that gate exists.
 - **2.8 (Stryker)** was optional and was not run.
+
+### 2026-09-12 — Phase 3 decisions made during implementation
+
+- **`markLastRouteSaved(clientRouteId, userId)`** takes the route id as well as the rider (the plan
+  said `markLastRouteSaved(userId)`), and no-ops when the store has already moved on to a newer
+  ride. A slow save must never mark a route the rider did not save.
+- **The rider is captured in `onMutate`**, not read at success time, so a session change mid-flight
+  cannot hand the next rider a "Saved ✓". The signed-in subtree is keyed by `user.id` so rider B
+  inherits none of rider A's pending/error/success state.
+- **The start label is cut to 200 characters client-side** (`toSaveRouteRequest`), without splitting
+  a surrogate pair. A typed address longer than the column would otherwise be a guaranteed 400.
+- **`router.navigate('/account')`**, not `push`: the tabs sit under the result screen, so navigate
+  unwinds to them instead of stacking a second tab navigator.
+- **Copy:** signed-out Account text now mentions saving; both result screens dropped "Generated
+  routes aren't saved yet"; the native map's bottom fit padding grew 200 → 280 for the taller overlay.
+
+### 2026-09-12 — Fixes applied from the implementation review
+
+`context/changes/save-route/reviews/impl-review.md` — F1–F5, F8, F9 fixed; F6 is this note.
+
+- **Hermetic wire-contract test** (F1). The `[PostgresFact]` suite never runs, so nothing executable
+  covered the shape of a *successful* save. `SuccessWireContract_IsTheOneTheClientConsumes`
+  serializes through the host's own `JsonOptions` and pins `id` / `name` / `createdAt` plus the
+  camelCase request binding — the regression the client's response guard would otherwise turn into
+  "unexpected response" on every save.
+- **Connection pool capped** (F2). `RideForgeDbContextOptions.DefaultMaxPoolSize = 8`, applied unless
+  the connection string names its own. Npgsql's default of 100 against the Supavisor *session*
+  pooler could exhaust the pooler's allowance on one burst and 503 every rider.
+- **Pending-migrations check** (F3). `PendingMigrationsCheck` reports at startup, in the background,
+  when the database is missing migrations this build expects — the symptom of a pre-deploy step that
+  did not run, which otherwise surfaces only as undifferentiated 503s. It applies nothing.
+- **Server messages allow-listed in logs** (F4). `LogDatabaseFailure` logged `MessageText` verbatim;
+  SQLSTATE 28P01 reads `password authentication failed for user "rideforge_api.<project-ref>"`. Only
+  statement-level codes (constraint, privilege, undefined table/column) keep their message now.
+- **Request body capped at 2 MB for saves** (F5). The 20,000-point ceiling is reachable only after
+  the whole array is materialised; Kestrel's 30 MB default let a signed-in caller force hundreds of
+  thousands of allocations per request. A full-size geometry is ~600 KB.
+- **Request shaping moved to `src/api/saved-routes.ts`** (F8) — it is wire shaping, not a hook.
+- **Postgres test helper asserts the status before parsing** (F9).
+
+Accepted rather than fixed:
+
+- **F7 — RLS is an exposure guard, not an ownership guard.** The policy is `USING (true)`: it keeps
+  the table away from the Data API and the anon key, and scopes nothing per rider. S-07 owns the
+  mitigation — its `GET` filters by `ownerId` in the query, and test-plan §8 already requires an
+  IDOR read test for it. A belt-and-braces EF global query filter is S-07's decision, not this
+  slice's. What must not happen is anyone reading "RLS is on" as "rows are owner-scoped".
+- **F10 — migrator connection string in `argv`, silent localhost fallback.** Container-local
+  exposure only, and the fallback cannot bite while no local Postgres exists. The fix touches the
+  deploy path and cannot be verified without a deploy.

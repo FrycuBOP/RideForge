@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 
+using Npgsql;
+
 namespace RideForgeApi.Persistence;
 
 /// <summary>
@@ -65,11 +67,32 @@ public sealed class RideForgeDbContext(DbContextOptions<RideForgeDbContext> opti
 public static class RideForgeDbContextOptions
 {
     /// <summary>
+    /// Ceiling on the connections this API keeps open, applied unless the connection string names
+    /// one. Railway reaches Supabase through the Supavisor <em>session</em> pooler, where every open
+    /// connection holds a dedicated Postgres backend for its whole life and the pooler's allowance is
+    /// small. Npgsql's default of 100 would let one burst of saves exhaust it: the surplus opens time
+    /// out, every rider gets a 503, and the sanitized failure log says nothing about saturation. A
+    /// save is a single short insert, so a handful of connections is ample.
+    /// </summary>
+    public const int DefaultMaxPoolSize = 8;
+
+    /// <summary>
     /// The one place the provider is configured, shared by the app host and the design-time factory
     /// so the two can never disagree about where the migrations history table lives.
     /// </summary>
     public static DbContextOptionsBuilder UseRideForgeDatabase(
-        this DbContextOptionsBuilder builder, string connectionString) =>
-        builder.UseNpgsql(connectionString, npgsql => npgsql.MigrationsHistoryTable(
+        this DbContextOptionsBuilder builder, string connectionString)
+    {
+        var settings = new NpgsqlConnectionStringBuilder(connectionString);
+
+        // Only a default: an operator who needs a different ceiling sets it in the connection string
+        // and keeps it.
+        if (!settings.ContainsKey("Maximum Pool Size"))
+        {
+            settings.MaxPoolSize = DefaultMaxPoolSize;
+        }
+
+        return builder.UseNpgsql(settings.ConnectionString, npgsql => npgsql.MigrationsHistoryTable(
             RideForgeDbContext.MigrationsHistoryTable, RideForgeDbContext.Schema));
+    }
 }

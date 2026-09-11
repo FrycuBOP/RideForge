@@ -1,6 +1,6 @@
 import { request } from './client';
 import { ApiError } from './errors';
-import type { GeoPoint } from './route';
+import type { GeneratedRoute, GenerateRequest, GeoPoint } from './route';
 
 /**
  * Request body for `POST /saved-routes`, mirroring the backend's `SaveRouteRequestDto`. There is
@@ -33,6 +33,41 @@ export const MAX_START_LABEL_LENGTH = 200;
  * for a cold pooler connection, short enough that a dead network surfaces as a retryable timeout.
  */
 const SAVE_TIMEOUT_MS = 15_000;
+
+/**
+ * A generated ride, as much of it as saving needs. Structural on purpose: the result store's `Ride`
+ * satisfies it, without this layer having to know that the store exists.
+ */
+export type SaveRouteInput = {
+  clientRouteId: string;
+  request: GenerateRequest;
+  startLabel: string | null;
+  route: GeneratedRoute;
+};
+
+/**
+ * Cut a start label to the server's column limit without splitting a surrogate pair — a lone
+ * surrogate is not valid UTF-16 and would turn a long-but-fine label into a failed save.
+ */
+function fitStartLabel(label: string | null): string | null {
+  if (label === null || label.length <= MAX_START_LABEL_LENGTH) return label;
+  const cut = label.slice(0, MAX_START_LABEL_LENGTH);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
+/** Build the `POST /saved-routes` body for a generated ride. */
+export function toSaveRouteRequest(ride: SaveRouteInput): SaveRouteRequest {
+  return {
+    clientRouteId: ride.clientRouteId,
+    start: ride.request.start,
+    startLabel: fitStartLabel(ride.startLabel),
+    requestedDistanceKm: ride.request.distanceKm,
+    geometry: ride.route.geometry,
+    distanceMeters: ride.route.distanceMeters,
+    durationSeconds: ride.route.durationSeconds,
+  };
+}
 
 /**
  * Save a generated route to the signed-in rider's account (FR-009). Idempotent per

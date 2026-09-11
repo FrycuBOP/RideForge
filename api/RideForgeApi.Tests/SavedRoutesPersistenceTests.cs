@@ -41,6 +41,17 @@ public class SavedRoutesPersistenceTests : IClassFixture<PostgresApiFactory>
         HttpClient client, JsonObject payload)
     {
         var response = await client.PostAsJsonAsync("/saved-routes", payload);
+
+        // Assert the status before parsing. SavedRouteResponseDto is a positional record, so
+        // System.Text.Json fills missing constructor parameters with defaults instead of throwing: a
+        // 400 or 503 ProblemDetails body parses into Id = Guid.Empty with a null Name and sails past
+        // Assert.NotNull, surfacing much later as a confusing row count or id comparison. Failing
+        // here, with the body in the message, names the real problem.
+        Assert.True(
+            response.IsSuccessStatusCode,
+            $"Expected a successful save but got {(int)response.StatusCode}: " +
+            await response.Content.ReadAsStringAsync());
+
         var body = await response.Content.ReadFromJsonAsync<SavedRouteResponseDto>();
         Assert.NotNull(body);
         return (response.StatusCode, body);

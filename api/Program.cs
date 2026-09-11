@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -167,6 +168,13 @@ builder.Services.AddDbContext<RideForgeDbContext>(options => options
         (CoreEventId.SaveChangesFailed, LogLevel.Debug),
         (CoreEventId.QueryIterationFailed, LogLevel.Debug))));
 
+// Migrations are applied by the Railway pre-deploy step (api/migrate.sh), never from here — a failed
+// migration must stop the deploy while the previous version keeps serving, not crash-loop a running
+// API. But that pre-deploy command lives in a Railway dashboard field this repo cannot see: clear it,
+// or create a new service without it, and the app boots against an older schema where every save
+// fails with an undifferentiated 503. This reports that case at startup. It never applies anything.
+builder.Services.AddHostedService<PendingMigrationsCheck>();
+
 // Anonymous generation quota (S-05). Each generation is a billed provider call, so the ceiling is
 // enforced here rather than in the client, where it would be one devtools away from gone.
 
@@ -232,6 +240,9 @@ builder.Services.AddRateLimiter(limiter =>
     });
 });
 
+/// <summary>Body ceiling for a save — see the middleware that applies it.</summary>
+const long SaveRequestSizeLimitBytes = 2_000_000;
+
 var app = builder.Build();
 
 // Railway injects PORT; ASP.NET Core does not pick it up automatically. When PORT is set
@@ -252,6 +263,28 @@ app.Logger.LogInformation("Route stitching provider resolved to '{Provider}'.", 
 app.UseForwardedHeaders();
 
 app.UseCors();
+
+// A save carries the only large body this API accepts, and SavedRouteValidation's 20,000-point
+// ceiling is reachable only after System.Text.Json has materialised the whole array. Left at
+// Kestrel's 30 MB default, a signed-in caller could force hundreds of thousands of allocations per
+// request, repeatedly and unthrottled, and take generation down with the container. A full-size
+// geometry serializes to roughly 600 KB, so this refuses the abusive case at the transport layer
+// while staying generous for anything real. Set here, before the body is read; the feature is
+// absent on some hosts (and read-only once reading has begun), hence the guard.
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsPost(context.Request.Method)
+        && context.Request.Path.StartsWithSegments("/saved-routes"))
+    {
+        var limit = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (limit is { IsReadOnly: false })
+        {
+            limit.MaxRequestBodySize = SaveRequestSizeLimitBytes;
+        }
+    }
+
+    await next(context);
+});
 
 // Bearer tokens, not cookies — so the AllowAnyOrigin policy above stays valid. An Authorization
 // header is not a "credential" in the CORS sense, which is what AllowAnyOrigin conflicts with.
@@ -511,17 +544,74 @@ static void LogDatabaseFailure(ILogger logger, Exception ex)
     var chain = string.Join(" > ", ExceptionChain(ex).Select(e =>
         e is SocketException socket ? $"{nameof(SocketException)}({socket.SocketErrorCode})" : e.GetType().Name));
     var server = ExceptionChain(ex).OfType<PostgresException>().FirstOrDefault();
+    var serverMessage = server is null ? "none"
+        : MayLogServerMessage(server.SqlState) ? server.MessageText
+        : "withheld";
 
     logger.LogWarning(
         "Saving a route failed in the database: {ExceptionChain}; SQLSTATE {SqlState}: {ServerMessage}",
-        chain, server?.SqlState ?? "none", server?.MessageText ?? "none");
+        chain, server?.SqlState ?? "none", serverMessage);
 }
+
+/// <summary>
+/// Whether a server-side failure's own message may be logged. The allowed codes describe the
+/// <em>statement</em> — a violated constraint, a missing grant or policy, a table an unapplied
+/// migration has not created yet — and naming them is the whole point of logging at all. Every other
+/// code echoes the connection identity back instead: 28P01 reads
+/// <c>password authentication failed for user "rideforge_api.&lt;project-ref&gt;"</c> and 3D000 names
+/// the database, so a password rotated in Supabase but not on Railway would write the pooler
+/// username and the project ref into the deploy log on every save. For those, only the SQLSTATE is
+/// kept — enough to look the cause up, with nothing of the connection in it.
+/// </summary>
+static bool MayLogServerMessage(string sqlState) => sqlState is
+    PostgresErrorCodes.UniqueViolation or
+    PostgresErrorCodes.CheckViolation or
+    PostgresErrorCodes.NotNullViolation or
+    PostgresErrorCodes.StringDataRightTruncation or
+    PostgresErrorCodes.InsufficientPrivilege or
+    PostgresErrorCodes.UndefinedTable or
+    PostgresErrorCodes.UndefinedColumn;
 
 /// <summary>A generic 503: the body says nothing about where or what the database is.</summary>
 static IResult SaveUnavailable() =>
     Results.Problem(
         detail: "The route could not be saved right now. Try again shortly.",
         statusCode: StatusCodes.Status503ServiceUnavailable);
+
+/// <summary>
+/// Reports once, at startup, whether the database is missing migrations this build expects — the
+/// symptom of a pre-deploy step that did not run. Runs in the background so a slow or unreachable
+/// database never delays the API coming up, and applies nothing: the deploy pipeline owns migrating.
+/// </summary>
+internal sealed class PendingMigrationsCheck(
+    IServiceScopeFactory scopes, ILogger<PendingMigrationsCheck> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<RideForgeDbContext>();
+            var pending = (await db.Database.GetPendingMigrationsAsync(stoppingToken)).ToArray();
+
+            if (pending.Length > 0)
+            {
+                logger.LogError(
+                    "The database is missing {Count} migration(s) this build expects: {Migrations}. " +
+                    "The pre-deploy migration step did not run; saves will fail until it does.",
+                    pending.Length, string.Join(", ", pending));
+            }
+        }
+        catch (Exception ex)
+        {
+            // Never the exception itself: Npgsql's message names the host, and no connection detail
+            // may reach a log line (see LogDatabaseFailure). An unreachable database is not this
+            // check's problem to report — a save that needs it will say so itself.
+            logger.LogWarning(
+                "Could not check for pending migrations at startup ({Error}).", ex.GetType().Name);
+        }
+    }
+}
 
 /// <summary>
 /// Exposed so the test project can boot the real pipeline with
