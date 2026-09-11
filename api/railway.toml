@@ -1,8 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "Dockerfile"
-
-[deploy]
-# Apply pending migrations before this version takes traffic. A failure stops the deploy and the
-# previous version keeps serving. See migrate.sh.
-preDeployCommand = ["/bin/sh /app/migrate.sh"]
