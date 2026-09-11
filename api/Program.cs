@@ -243,6 +243,14 @@ builder.Services.AddRateLimiter(limiter =>
 /// <summary>Body ceiling for a save — see the middleware that applies it.</summary>
 const long SaveRequestSizeLimitBytes = 2_000_000;
 
+// What a database failure is called, in the log line and in the body the rider sees. Split by
+// direction: a read that fails has not failed to save anything, and a log line claiming otherwise
+// sends whoever is diagnosing it to the wrong endpoint.
+const string SaveOperation = "Saving a route";
+const string ReadOperation = "Reading saved routes";
+const string SaveFailedDetail = "The route could not be saved right now. Try again shortly.";
+const string ReadFailedDetail = "Your saved routes could not be loaded right now. Try again shortly.";
+
 var app = builder.Build();
 
 // Railway injects PORT; ASP.NET Core does not pick it up automatically. When PORT is set
@@ -376,13 +384,92 @@ app.MapPost("/saved-routes", async (
             // The index said the row exists and the read found none. Nothing deletes saved routes
             // yet, so this is not expected; answer as unavailable rather than invent a result.
             logger.LogWarning("Repeat save hit the per-owner unique index but no existing row was found.");
-            return SaveUnavailable();
+            return DatabaseUnavailable(SaveFailedDetail);
         }
     }
     catch (Exception ex) when (IsDatabaseFailure(ex))
     {
-        LogDatabaseFailure(logger, ex);
-        return SaveUnavailable();
+        LogDatabaseFailure(logger, ex, SaveOperation);
+        return DatabaseUnavailable(SaveFailedDetail);
+    }
+}).RequireAuthorization();
+
+// The signed-in rider's saved rides, newest first (FR-010): 401 no/invalid token, 200 with the
+// envelope (an empty items array for a rider with none — having saved nothing is not a missing
+// resource), 503 database unavailable.
+//
+// Whose routes these are is decided by the token's sub and nothing else. That is not belt-and-braces
+// here: the RLS policy on the table is USING (true), so SavedRouteQueries' owner predicate is the
+// only thing between two riders. Capped and geometry-free — see SavedRouteListLimits.MaxItems and
+// SavedRouteSummaryDto. No rate limit, matching the save: this is one bounded indexed read.
+app.MapGet("/saved-routes", async (
+    ClaimsPrincipal user,
+    RideForgeDbContext db,
+    ILogger<Program> logger,
+    CancellationToken ct) =>
+{
+    if (!Guid.TryParse(SubjectOf(user), out var ownerId))
+    {
+        return Results.Unauthorized();
+    }
+
+    try
+    {
+        var items = await db.SavedRoutes.AsNoTracking()
+            .SummariesOwnedBy(ownerId, SavedRouteListLimits.MaxItems)
+            .ToListAsync(ct);
+
+        return Results.Ok(new SavedRouteListResponseDto(items));
+    }
+    catch (Exception ex) when (IsDatabaseFailure(ex))
+    {
+        LogDatabaseFailure(logger, ex, ReadOperation);
+        return DatabaseUnavailable(ReadFailedDetail);
+    }
+}).RequireAuthorization();
+
+// One saved ride, geometry included, so the app can draw it again (FR-010): 401 no/invalid token,
+// 404 unknown, 200 with the ride, 503 database unavailable.
+//
+// A route owned by another rider answers 404 — the same answer as one that does not exist, and
+// deliberately so. A 403 would confirm the id names a real route, turning this endpoint into a probe
+// for other riders' ids. The :guid constraint disposes of a malformed id as a 404 before the handler
+// runs.
+app.MapGet("/saved-routes/{id:guid}", async (
+    Guid id,
+    ClaimsPrincipal user,
+    RideForgeDbContext db,
+    ILogger<Program> logger,
+    CancellationToken ct) =>
+{
+    if (!Guid.TryParse(SubjectOf(user), out var ownerId))
+    {
+        return Results.Unauthorized();
+    }
+
+    try
+    {
+        var route = await db.SavedRoutes.AsNoTracking()
+            .OwnedRoute(ownerId, id)
+            .SingleOrDefaultAsync(ct);
+
+        return route is null
+            ? Results.NotFound()
+            : Results.Ok(new SavedRouteDetailDto(
+                route.Id,
+                route.Name,
+                new Coord(route.StartLat, route.StartLng),
+                route.StartLabel,
+                route.RequestedDistanceKm,
+                route.DistanceMeters,
+                route.DurationSeconds,
+                route.Geometry,
+                route.CreatedAt));
+    }
+    catch (Exception ex) when (IsDatabaseFailure(ex))
+    {
+        LogDatabaseFailure(logger, ex, ReadOperation);
+        return DatabaseUnavailable(ReadFailedDetail);
     }
 }).RequireAuthorization();
 
@@ -539,7 +626,7 @@ static IEnumerable<Exception> ExceptionChain(Exception ex)
 /// to diagnose: the exception types, the socket error, and — for a server-side refusal — the
 /// SQLSTATE and the server's own message (a missing grant or RLS policy reads 42501 here).
 /// </summary>
-static void LogDatabaseFailure(ILogger logger, Exception ex)
+static void LogDatabaseFailure(ILogger logger, Exception ex, string operation)
 {
     var chain = string.Join(" > ", ExceptionChain(ex).Select(e =>
         e is SocketException socket ? $"{nameof(SocketException)}({socket.SocketErrorCode})" : e.GetType().Name));
@@ -549,8 +636,8 @@ static void LogDatabaseFailure(ILogger logger, Exception ex)
         : "withheld";
 
     logger.LogWarning(
-        "Saving a route failed in the database: {ExceptionChain}; SQLSTATE {SqlState}: {ServerMessage}",
-        chain, server?.SqlState ?? "none", serverMessage);
+        "{Operation} failed in the database: {ExceptionChain}; SQLSTATE {SqlState}: {ServerMessage}",
+        operation, chain, server?.SqlState ?? "none", serverMessage);
 }
 
 /// <summary>
@@ -572,11 +659,13 @@ static bool MayLogServerMessage(string sqlState) => sqlState is
     PostgresErrorCodes.UndefinedTable or
     PostgresErrorCodes.UndefinedColumn;
 
-/// <summary>A generic 503: the body says nothing about where or what the database is.</summary>
-static IResult SaveUnavailable() =>
-    Results.Problem(
-        detail: "The route could not be saved right now. Try again shortly.",
-        statusCode: StatusCodes.Status503ServiceUnavailable);
+/// <summary>
+/// A generic 503: the body says nothing about where or what the database is. The <em>detail</em> is
+/// the caller's, because "could not be saved" is nonsense on a read — the status mapping is what all
+/// three endpoints share, not the copy.
+/// </summary>
+static IResult DatabaseUnavailable(string detail) =>
+    Results.Problem(detail: detail, statusCode: StatusCodes.Status503ServiceUnavailable);
 
 /// <summary>
 /// Reports once, at startup, whether the database is missing migrations this build expects — the

@@ -180,4 +180,83 @@ public class SavedRoutesPersistenceTests : IClassFixture<PostgresApiFactory>
         Assert.Equal(SavedRoutePayload.DistanceMeters, row.DistanceMeters);
         Assert.Equal(SavedRoutePayload.Geometry.Length, row.Geometry.Count);
     }
+
+    [PostgresFact]
+    public async Task List_ReturnsOnlyTheCallersRoutes_NewestFirst()
+    {
+        // The cross-rider read against a real database. SavedRouteQueriesTests proves the expression
+        // is right; this is the one that proves the endpoint composes it — with a real RLS policy
+        // that scopes nothing (USING (true)) doing none of the work for it.
+        var riderA = _factory.NewRider();
+        var riderB = _factory.NewRider();
+
+        var older = await Save(ClientFor(riderA), SavedRoutePayload.Valid());
+        var newer = await Save(ClientFor(riderA), SavedRoutePayload.Valid());
+        var theirs = await Save(ClientFor(riderB), SavedRoutePayload.Valid());
+
+        var listed = await List(ClientFor(riderA));
+
+        Assert.Equal([newer.Body.Id, older.Body.Id], listed.Items.Select(i => i.Id));
+        Assert.DoesNotContain(listed.Items, i => i.Id == theirs.Body.Id);
+        Assert.Equal(SavedRoutePayload.DistanceMeters, listed.Items[0].DistanceMeters);
+    }
+
+    [PostgresFact]
+    public async Task Detail_ForAnotherRidersRoute_Returns404()
+    {
+        // 404 and not 403: a 403 would confirm the id names a real route, which turns the endpoint
+        // into a probe for other riders' route ids.
+        var riderA = _factory.NewRider();
+        var riderB = _factory.NewRider();
+
+        var theirs = await Save(ClientFor(riderB), SavedRoutePayload.Valid());
+
+        var response = await ClientFor(riderA).GetAsync($"/saved-routes/{theirs.Body.Id}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [PostgresFact]
+    public async Task Detail_ReturnsTheRideAsItWasSaved_GeometryInOrder()
+    {
+        // What makes a saved route revisitable: the polyline comes back through the jsonb mapping in
+        // the order and on the axes it went in. An axis swap here draws every revisited ride in the
+        // wrong hemisphere.
+        var rider = _factory.NewRider();
+        var saved = await Save(ClientFor(rider), SavedRoutePayload.Valid());
+
+        var response = await ClientFor(rider).GetAsync($"/saved-routes/{saved.Body.Id}");
+        Assert.True(
+            response.IsSuccessStatusCode,
+            $"Expected the saved route but got {(int)response.StatusCode}: " +
+            await response.Content.ReadAsStringAsync());
+
+        var detail = await response.Content.ReadFromJsonAsync<SavedRouteDetailDto>();
+        Assert.NotNull(detail);
+        Assert.Equal(saved.Body.Id, detail.Id);
+        Assert.Equal("Loop from Kraków · 42 km", detail.Name);
+        Assert.Equal("Kraków", detail.StartLabel);
+        Assert.Equal(40.0, detail.RequestedDistanceKm);
+        Assert.Equal(SavedRoutePayload.Geometry.Length, detail.Geometry.Count);
+        Assert.Equal(
+            SavedRoutePayload.Geometry.Select(p => (p.Lat, p.Lng)),
+            detail.Geometry.Select(c => (c.Lat, c.Lng)));
+    }
+
+    private static async Task<SavedRouteListResponseDto> List(HttpClient client)
+    {
+        var response = await client.GetAsync("/saved-routes");
+
+        // Assert the status before parsing, for the same reason Save does: a positional record fills
+        // missing constructor parameters with defaults, so a ProblemDetails body would parse into an
+        // empty envelope and surface much later as a confusing row count.
+        Assert.True(
+            response.IsSuccessStatusCode,
+            $"Expected the saved-routes list but got {(int)response.StatusCode}: " +
+            await response.Content.ReadAsStringAsync());
+
+        var body = await response.Content.ReadFromJsonAsync<SavedRouteListResponseDto>();
+        Assert.NotNull(body);
+        return body;
+    }
 }
