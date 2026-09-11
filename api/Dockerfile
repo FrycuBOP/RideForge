@@ -6,7 +6,7 @@ COPY . .
 RUN dotnet publish -c Release -o /app/publish
 
 # Migrations ship as an EF bundle: one executable that Railway's pre-deploy step runs (see
-# railway.toml and migrate.sh), because the runtime image below has no SDK for `dotnet ef`. Keep the
+# migrate.sh), because the runtime image below has no SDK for `dotnet ef`. Keep the
 # tool version in step with dotnet-tools.json at the repo root, which is outside this build context.
 ENV PATH="${PATH}:/root/.dotnet/tools"
 RUN dotnet tool install --global dotnet-ef --version 10.0.12

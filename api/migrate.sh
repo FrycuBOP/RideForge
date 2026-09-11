@@ -1,6 +1,10 @@
-# Railway pre-deploy step (see railway.toml): applies pending EF Core migrations as the
-# rideforge_migrator role before the new API version takes traffic. Any non-zero exit stops the
-# deploy and leaves the previous version serving — a broken migration never takes the API down.
+# Railway pre-deploy step: applies pending EF Core migrations as the rideforge_migrator role before
+# the new API version takes traffic. Any non-zero exit stops the deploy and leaves the previous
+# version serving — a broken migration never takes the API down.
+#
+# Wired up in the Railway dashboard, not in the repo (Config as Code is deprecated and was never
+# enabled for this service): API service → Settings → Deploy → Pre-deploy Command:
+#     /bin/sh /app/migrate.sh
 #
 # Run with /bin/sh explicitly: Railway starts Dockerfile commands in exec form, which expands no
 # variables, and the Dockerfile strips CRLF so a Windows checkout cannot break this file.

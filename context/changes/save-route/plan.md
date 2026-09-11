@@ -640,11 +640,11 @@ order would crash-loop the current code.
 
 #### Manual
 
-- [ ] 1.5 Migration applied to Supabase; table in `rideforge` with RLS on, nothing in `public`
-- [ ] 1.6 Anon-key Data API request cannot read the table
-- [ ] 1.7 `rideforge_api` can select from the table (0 rows, no permission error)
-- [ ] 1.8 Railway deploy boots; `/health` and anonymous generation still work
-- [ ] 1.9 Local startup with the connection string unset fails loudly
+- [x] 1.5 Migration applied to Supabase; table in `rideforge` with RLS on, nothing in `public`
+- [x] 1.6 Anon-key Data API request cannot read the table
+- [x] 1.7 `rideforge_api` can select from the table (0 rows, no permission error)
+- [x] 1.8 Railway deploy boots; `/health` and anonymous generation still work
+- [x] 1.9 Local startup with the connection string unset fails loudly
 
 ### Phase 2: `POST /saved-routes` + tests (backend)
 

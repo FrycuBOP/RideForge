@@ -32,6 +32,13 @@ forgotten, and code that needs a newer schema would then 500 every save.
   migrations must stay backward-compatible (expand first, contract in a later release).
 - **New rule for future migrations:** every new table needs its own `GRANT` to `rideforge_api` in the
   migration — the migrator owns the tables, so nothing is granted implicitly.
+- **Pre-deploy is a Railway dashboard setting, not a repo file.** `api/railway.toml` was never read
+  (config-as-code paths ignore the Root Directory `/api`; first deploy of `61e11bc` had no Pre-deploy
+  step), and Config as Code is deprecated — services that never used it can no longer opt in.
+  Infrastructure as Code would need the Railway CLI + `railway config apply` in CI (out of scope).
+  So: API service → Settings → Deploy → Pre-deploy Command = `/bin/sh /app/migrate.sh`, and the dead
+  `railway.toml` was deleted. The logic stays versioned in `migrate.sh`; only that one line lives in
+  Railway. Railway auto-detects `api/Dockerfile`, so nothing else was lost.
 - **Tool manifest** lives at the repo root (`dotnet-tools.json`, .NET 10 SDK default), not `.config/`.
 - **1.4 (local Postgres apply) deferred** — no local Postgres; the first real apply is the Railway
   pre-deploy against Supabase (1.5). Revisit when phase 2 brings a local database.
