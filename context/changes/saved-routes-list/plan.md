@@ -522,6 +522,117 @@ to the next phase.
 
 ---
 
+## Phase 4: Endpoint declarations out of `Program.cs`
+
+### Overview
+
+`Program.cs` is ~680 lines and holds six endpoint declarations, the service configuration for five
+subsystems, and eight top-level helper functions shared between them. This slice added two more
+endpoints to that pile; the file is now the place you have to scroll through to find anything. Move
+the endpoint declarations into route-group extension classes next to the feature they belong to, and
+the helpers they share into named static classes, leaving `Program.cs` as composition: configure
+services, build the pipeline, map the groups, run.
+
+Behaviour must not change — not one status code, not one log line, not one JSON field. The suite is
+the proof: **no test file may be edited in this phase.** If a test needs changing, the refactor
+changed behaviour and that is a mismatch to stop on, not to accommodate.
+
+Placed after the feature phases deliberately. Refactoring the endpoints while the client is still
+being built against them would put a moving structure under Phase 2 and 3, and the argument for the
+move is readability, which does not expire.
+
+### Changes Required:
+
+#### 1. Shared rider identity
+
+**File**: `api/Auth/RiderIdentity.cs` (new)
+
+**Intent**: `SubjectOf` is the one rule the whole API uses to answer "who is calling", and it is
+currently a top-level local function that only `Program.cs` can reach. Both `/me` and all three
+saved-route endpoints need it, so it cannot stay there once they leave.
+
+**Contract**: `public static class RiderIdentity` with `SubjectOf(ClaimsPrincipal)` moved verbatim,
+including the comment explaining why both claim names are read. Consider adding
+`TryGetRiderId(ClaimsPrincipal, out Guid)` wrapping the `Guid.TryParse(SubjectOf(user))` that three
+handlers now repeat — one place for the rule that a non-UUID subject identifies nobody.
+
+#### 2. Shared database-failure handling
+
+**File**: `api/Persistence/DatabaseFailures.cs` (new)
+
+**Intent**: `IsDatabaseFailure`, `ExceptionChain`, `LogDatabaseFailure`, `MayLogServerMessage` and
+`DatabaseUnavailable` are one cohesive rule — what counts as a database fault, what may be said about
+it in a log, and what the caller is told — split across five top-level functions. They travel
+together and they are what keeps connection details out of the logs, so they deserve a name.
+
+**Contract**: `public static class DatabaseFailures` holding all five, moved verbatim. The sanitizing
+reasoning in the XML docs moves with them unchanged — that commentary is the reason the code looks
+the way it does, and `SavedRoutesEndpointTests` asserts on its behaviour.
+
+#### 3. Saved-routes endpoints
+
+**File**: `api/SavedRoutes/SavedRoutesEndpoints.cs` (new)
+
+**Intent**: The three saved-route endpoints plus the operation/detail constants and `IsRepeatSave`,
+which only they use.
+
+**Contract**: `public static class SavedRoutesEndpoints` with
+`public static IEndpointRouteBuilder MapSavedRoutes(this IEndpointRouteBuilder app)`. Keep the
+`.RequireAuthorization()` on each endpoint rather than hoisting it to a group — a group-level
+default is one edit away from silently covering a future endpoint that should not have it, and the
+per-endpoint call is what `SavedRoutesReadEndpointTests` is really asserting. `SaveOperation`,
+`ReadOperation`, `SaveFailedDetail`, `ReadFailedDetail` and `IsRepeatSave` become private members of
+this class. Every explanatory comment moves with its endpoint.
+
+#### 4. Routing endpoints
+
+**File**: `api/Routing/RouteEndpoints.cs` (new)
+
+**Intent**: `POST /route/stitch` and `POST /route/generate`, which share a failure→status mapping and
+a rate-limiting policy.
+
+**Contract**: `public static class RouteEndpoints` with `MapRouteEndpoints(this IEndpointRouteBuilder)`.
+The `RouteStitchException.Kind` → status switch is duplicated across both handlers today; collapsing
+it into one private helper is in scope, because it is the same mapping and a divergence between the
+two would be a silent contract break. `.RequireRateLimiting(GenerationQuotaPolicy)` stays on each
+endpoint, so the policy name has to be reachable — move it to a const on `GenerationQuotaOptions`
+rather than passing it in.
+
+#### 5. What stays in `Program.cs`
+
+**File**: `api/Program.cs`
+
+**Intent**: Composition only, so the file reads as a table of contents for the service.
+
+**Contract**: Service registration (CORS, stitching provider resolution, Supabase auth, DbContext,
+rate limiter), the pipeline (`UseForwardedHeaders` → CORS → body-size middleware → auth → rate
+limiter), `/health`, `/me`, and the three `Map*` calls. `SaveRequestSizeLimitBytes` and the body-size
+middleware stay here: it is pipeline configuration keyed on a path, not an endpoint declaration.
+`AnonymousPartitionKey` stays with the rate-limiter configuration it serves. `PendingMigrationsCheck`
+stays as-is. `Program` must remain the entry-point type — `WebApplicationFactory<Program>` in every
+test fixture depends on it.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- Backend builds with no new warnings: `dotnet build api/RideForgeApi.slnx`
+- Full backend suite green: `dotnet test api/RideForgeApi.slnx` — same pass and skip counts as before
+  the refactor (130 passed / 9 skipped at the end of Phase 1, plus nothing this phase adds)
+- `git diff --stat api/RideForgeApi.Tests/` is empty: no test file was edited. A refactor that needs a
+  test changed is not a refactor.
+
+#### Manual Verification:
+
+- `Program.cs` reads end-to-end as configure → pipeline → map → run, with no endpoint body in it
+- Every comment that explained *why* an endpoint behaves as it does is still attached to that endpoint
+
+**Implementation Note**: After completing this phase and all automated verification passes, pause
+here for manual confirmation from the human that the manual testing was successful before proceeding
+to the next phase.
+
+---
+
 ## Phase 5: Cookbook + close-out
 
 ### Overview
@@ -648,15 +759,15 @@ reload.
 
 #### Automated
 
-- [x] 1.1 Backend builds: `dotnet build api/RideForgeApi.slnx`
-- [x] 1.2 Backend tests pass: `dotnet test api/RideForgeApi.slnx`
-- [x] 1.3 New query-shaping, SQL-guard and endpoint tests report as passed, not skipped
+- [x] 1.1 Backend builds: `dotnet build api/RideForgeApi.slnx` — ea0729d
+- [x] 1.2 Backend tests pass: `dotnet test api/RideForgeApi.slnx` — ea0729d
+- [x] 1.3 New query-shaping, SQL-guard and endpoint tests report as passed, not skipped — ea0729d
 
 #### Manual
 
-- [ ] 1.4 Deployed list with a real token returns that rider's routes and nothing else
-- [ ] 1.5 Deployed detail for another rider's route id answers 404
-- [ ] 1.6 List response for a rider with several routes is a few KB, not megabytes
+- [x] 1.4 Deployed list with a real token returns that rider's routes and nothing else — ea0729d
+- [x] 1.5 Deployed detail for another rider's route id answers 404 — ea0729d
+- [x] 1.6 List response for a rider with several routes is a few KB, not megabytes — ea0729d
 
 ### Phase 2: Client data layer + list screen
 
@@ -691,6 +802,19 @@ reload.
 - [ ] 3.7 An unknown route id shows the not-available copy, not a crash or a spinner
 - [ ] 3.8 Generating a new route does not change what an open revisit screen shows
 - [ ] 3.9 Both screens render on web
+
+### Phase 4: Endpoint declarations out of `Program.cs`
+
+#### Automated
+
+- [ ] 4.1 Backend builds with no new warnings: `dotnet build api/RideForgeApi.slnx`
+- [ ] 4.2 Full backend suite green with unchanged pass and skip counts: `dotnet test api/RideForgeApi.slnx`
+- [ ] 4.3 No test file was edited: `git diff --stat api/RideForgeApi.Tests/` is empty
+
+#### Manual
+
+- [ ] 4.4 `Program.cs` reads as configure → pipeline → map → run, with no endpoint body in it
+- [ ] 4.5 Every comment explaining why an endpoint behaves as it does is still attached to that endpoint
 
 ### Phase 5: Cookbook + close-out
 
