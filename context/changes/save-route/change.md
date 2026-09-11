@@ -1,9 +1,9 @@
 ---
 change_id: save-route
 title: Save route
-status: implementing
+status: implemented
 created: 2026-09-11
-updated: 2026-09-11
+updated: 2026-09-12
 archived_at: null
 ---
 
@@ -61,3 +61,19 @@ forgotten, and code that needs a newer schema would then 500 every save.
   and a cut never splits a surrogate pair. Kilometres round halves away from zero (42.5 → 43).
 - **Repeat detection matches the constraint name** (`ux_saved_routes_owner_client_route`), not just
   SQLSTATE 23505, so a different unique violation can never be answered with an existing row.
+
+### 2026-09-12 — No local Postgres: 1.4 / 2.2 / 2.4 closed as won't-do
+
+Decided at the end of phase 3. There is no local Postgres on this machine and there will not be
+one, so the three rows that ask for an apply/run against a local database are not deferred work —
+they are out of scope for good. Left unchecked in `## Progress` deliberately: `/10x-archive` will
+warn about them, and that warning is accurate.
+
+- **What still covers those rules:** the Railway pre-deploy migration (the real apply, 1.5) and the
+  deployed save with a real token (2.6/2.7). The six `[PostgresFact]` tests stay in the repo,
+  skipped, ready for the day a database is pointed at `RIDEFORGE_TEST_DB` — a CI Postgres service
+  or a Supabase branch, not a local install.
+- **The risk this makes real:** the plan's "the Postgres suite can rot unnoticed" is now permanent,
+  not a temporary gap. Per-owner uniqueness, idempotency, owner-from-token and the geometry
+  round-trip are pinned only by code review and the deployed smoke test until that gate exists.
+- **2.8 (Stryker)** was optional and was not run.

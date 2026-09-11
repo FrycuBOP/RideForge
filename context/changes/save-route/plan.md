@@ -666,16 +666,16 @@ order would crash-loop the current code.
 
 #### Automated
 
-- [x] 3.1 Type checking passes: `npx tsc --noEmit`
-- [x] 3.2 Linting passes: `npm run lint`
+- [x] 3.1 Type checking passes: `npx tsc --noEmit` — bc943c6
+- [x] 3.2 Linting passes: `npm run lint` — bc943c6
 
 #### Manual
 
-- [x] 3.3 Signed in: Save → Saving… → Saved ✓; row in Supabase with label and name
-- [x] 3.4 Double-tap Save leaves one row
-- [x] 3.5 Airplane mode shows the network message and retry works
-- [x] 3.6 Signed out: Sign in to save → Account → Back to your route → save succeeds
-- [x] 3.7 Rider B never sees rider A's Saved ✓; B's save creates B's own row
-- [x] 3.8 Web build: save works from the web result screen
-- [x] 3.9 Anonymous generation and the quota message unchanged
-- [x] 3.10 Metro reload on the existing dev build is enough (no new native module)
+- [x] 3.3 Signed in: Save → Saving… → Saved ✓; row in Supabase with label and name — bc943c6
+- [x] 3.4 Double-tap Save leaves one row — bc943c6
+- [x] 3.5 Airplane mode shows the network message and retry works — bc943c6
+- [x] 3.6 Signed out: Sign in to save → Account → Back to your route → save succeeds — bc943c6
+- [x] 3.7 Rider B never sees rider A's Saved ✓; B's save creates B's own row — bc943c6
+- [x] 3.8 Web build: save works from the web result screen — bc943c6
+- [x] 3.9 Anonymous generation and the quota message unchanged — bc943c6
+- [x] 3.10 Metro reload on the existing dev build is enough (no new native module) — bc943c6
