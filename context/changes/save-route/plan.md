@@ -650,32 +650,32 @@ order would crash-loop the current code.
 
 #### Automated
 
-- [x] 2.1 Hermetic suite passes with no database configured
+- [x] 2.1 Hermetic suite passes with no database configured — 63c6223
 - [ ] 2.2 Postgres suite passes against a local database
-- [x] 2.3 Postgres tests report as skipped when `RIDEFORGE_TEST_DB` is unset
+- [x] 2.3 Postgres tests report as skipped when `RIDEFORGE_TEST_DB` is unset — 63c6223
 - [ ] 2.4 Per-owner uniqueness, idempotent repeat, owner-from-token, and geometry round-trip cases present and passing
 
 #### Manual
 
-- [ ] 2.5 Deployed `POST /saved-routes` without a token → 401
-- [ ] 2.6 Deployed save with a real token → 201 and the row in Supabase
-- [ ] 2.7 Replaying the same request → 200, same `id`, one row
+- [x] 2.5 Deployed `POST /saved-routes` without a token → 401 — 63c6223
+- [x] 2.6 Deployed save with a real token → 201 and the row in Supabase — 63c6223
+- [x] 2.7 Replaying the same request → 200, same `id`, one row — 63c6223
 - [ ] 2.8 (Optional) Stryker on validation/naming; survived mutants triaged
 
 ### Phase 3: Save from the app (client)
 
 #### Automated
 
-- [ ] 3.1 Type checking passes: `npx tsc --noEmit`
-- [ ] 3.2 Linting passes: `npm run lint`
+- [x] 3.1 Type checking passes: `npx tsc --noEmit`
+- [x] 3.2 Linting passes: `npm run lint`
 
 #### Manual
 
-- [ ] 3.3 Signed in: Save → Saving… → Saved ✓; row in Supabase with label and name
-- [ ] 3.4 Double-tap Save leaves one row
-- [ ] 3.5 Airplane mode shows the network message and retry works
-- [ ] 3.6 Signed out: Sign in to save → Account → Back to your route → save succeeds
-- [ ] 3.7 Rider B never sees rider A's Saved ✓; B's save creates B's own row
-- [ ] 3.8 Web build: save works from the web result screen
-- [ ] 3.9 Anonymous generation and the quota message unchanged
-- [ ] 3.10 Metro reload on the existing dev build is enough (no new native module)
+- [x] 3.3 Signed in: Save → Saving… → Saved ✓; row in Supabase with label and name
+- [x] 3.4 Double-tap Save leaves one row
+- [x] 3.5 Airplane mode shows the network message and retry works
+- [x] 3.6 Signed out: Sign in to save → Account → Back to your route → save succeeds
+- [x] 3.7 Rider B never sees rider A's Saved ✓; B's save creates B's own row
+- [x] 3.8 Web build: save works from the web result screen
+- [x] 3.9 Anonymous generation and the quota message unchanged
+- [x] 3.10 Metro reload on the existing dev build is enough (no new native module)

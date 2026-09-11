@@ -9,3 +9,5 @@ export { getMe } from './me';
 export type { MeResponse } from './me';
 export { generateRoute } from './route';
 export type { GenerateRequest, GeneratedRoute, GeoPoint } from './route';
+export { MAX_START_LABEL_LENGTH, saveRoute } from './saved-routes';
+export type { SaveRouteRequest, SavedRoute } from './saved-routes';

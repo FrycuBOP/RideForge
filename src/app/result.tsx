@@ -6,13 +6,17 @@ import { Link } from 'expo-router';
 import MapView, { Marker, Polyline, type LatLng, type Region } from 'react-native-maps';
 
 import { RideStats } from '@/components/ride-stats';
+import { SaveRouteAction } from '@/components/save-route-action';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { getLastRoute } from '@/lib/route-result-store';
 
-/** Padding kept around the fitted route so the polyline never touches the screen edge. */
-const FIT_EDGE_PADDING = { top: 80, right: 60, bottom: 200, left: 60 };
+/**
+ * Padding kept around the fitted route so the polyline never touches the screen edge. The bottom
+ * clears the overlay (stats card + Save action) so no part of the loop is drawn underneath it.
+ */
+const FIT_EDGE_PADDING = { top: 80, right: 60, bottom: 280, left: 60 };
 
 /** Fallback framing before `fitToCoordinates` runs, and the only framing iOS honours on mount. */
 function boundingRegion(points: LatLng[]): Region {
@@ -42,16 +46,16 @@ export default function ResultScreen() {
   const mapRef = useRef<MapView | null>(null);
   // Snapshot once: the store is module-level mutable state, and the screen should keep showing the
   // route it was navigated with even if a later generation overwrites the store.
-  const [route] = useState(getLastRoute);
+  const [ride] = useState(getLastRoute);
 
-  if (!route || route.geometry.length === 0) {
+  if (!ride || ride.route.geometry.length === 0) {
     return (
       <ThemedView style={styles.emptyContainer}>
         <ThemedText type="subtitle" style={styles.centered}>
           No route yet
         </ThemedText>
         <ThemedText type="default" themeColor="textSecondary" style={styles.centered}>
-          Generated routes aren’t saved yet. Plan a ride to see it drawn here.
+          Plan a ride to see it drawn here.
         </ThemedText>
         <Link href="/" replace>
           <ThemedText type="linkPrimary">Back to Plan</ThemedText>
@@ -60,6 +64,7 @@ export default function ResultScreen() {
     );
   }
 
+  const { route } = ride;
   const coordinates: LatLng[] = route.geometry.map(({ lat, lng }) => ({
     latitude: lat,
     longitude: lng,
@@ -82,11 +87,10 @@ export default function ResultScreen() {
         <Marker coordinate={coordinates[0]} title="Start" />
       </MapView>
 
-      <RideStats
-        distanceMeters={route.distanceMeters}
-        durationSeconds={route.durationSeconds}
-        style={[styles.stats, { bottom: insets.bottom + Spacing.four }]}
-      />
+      <View style={[styles.overlay, { bottom: insets.bottom + Spacing.four }]}>
+        <RideStats distanceMeters={route.distanceMeters} durationSeconds={route.durationSeconds} />
+        <SaveRouteAction ride={ride} />
+      </View>
     </View>
   );
 }
@@ -98,10 +102,11 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  stats: {
+  overlay: {
     position: 'absolute',
     left: Spacing.three,
     right: Spacing.three,
+    gap: Spacing.two,
   },
   emptyContainer: {
     flex: 1,

@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Link } from 'expo-router';
+
 import { ApiError } from '@/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -18,6 +20,7 @@ import { useMeQuery } from '@/hooks/use-me-query';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { authErrorMessage } from '@/lib/auth-errors';
+import { useLastRoute } from '@/lib/route-result-store';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -50,6 +53,10 @@ export default function AccountScreen() {
   // The identity the backend resolved from the token — the only proof the JWT actually validated
   // server-side. Idle (never fetched) while signed out; see useMeQuery's `enabled`.
   const me = useMeQuery();
+  // Closes the "Sign in to save" loop: a rider who left an unsaved route to sign in gets a way back
+  // to it. Hidden once this rider has saved it — there is nothing left to go back for.
+  const lastRide = useLastRoute();
+  const hasUnsavedRide = user !== null && lastRide !== null && lastRide.savedBy !== user.id;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -155,6 +162,12 @@ export default function AccountScreen() {
           </ThemedView>
         ) : user ? (
           <ThemedView style={styles.form}>
+            {hasUnsavedRide && (
+              <Link href="/result">
+                <ThemedText type="linkPrimary">Back to your route</ThemedText>
+              </Link>
+            )}
+
             <ThemedView style={styles.section}>
               <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
                 SIGNED IN AS
@@ -219,7 +232,7 @@ export default function AccountScreen() {
         ) : (
           <ThemedView style={styles.form}>
             <ThemedText type="small" themeColor="textSecondary">
-              Sign in to lift the hourly limit on route generation.
+              Sign in to save your routes and lift the hourly limit on route generation.
             </ThemedText>
 
             <ThemedView style={styles.section}>

@@ -128,7 +128,10 @@ export default function PlanScreen() {
         setGeocodeError(result.reason);
         return;
       }
-      generate.mutate({ start: result.point, distanceKm: parsedDistance });
+      generate.mutate({
+        request: { start: result.point, distanceKm: parsedDistance },
+        startLabel: origin.trim(),
+      });
     } finally {
       setGeocoding(false);
     }
