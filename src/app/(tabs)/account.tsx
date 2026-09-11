@@ -168,6 +168,13 @@ export default function AccountScreen() {
               </Link>
             )}
 
+            {/* The way into the saved rides (FR-010). Signed-in only: the signed-out copy below
+                already explains what an account buys, and the screen itself handles the deep-link
+                case where a signed-out rider arrives anyway. */}
+            <Link href="/saved-routes">
+              <ThemedText type="linkPrimary">Your saved routes</ThemedText>
+            </Link>
+
             <ThemedView style={styles.section}>
               <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
                 SIGNED IN AS

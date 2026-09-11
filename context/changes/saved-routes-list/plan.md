@@ -773,18 +773,18 @@ reload.
 
 #### Automated
 
-- [ ] 2.1 Typecheck passes: `npx tsc --noEmit`
-- [ ] 2.2 Lint passes: `npm run lint`
-- [ ] 2.3 Backend tests still pass: `dotnet test api/RideForgeApi.slnx`
+- [x] 2.1 Typecheck passes: `npx tsc --noEmit`
+- [x] 2.2 Lint passes: `npm run lint`
+- [x] 2.3 Backend tests still pass: `dotnet test api/RideForgeApi.slnx`
 
 #### Manual
 
-- [ ] 2.4 Account → Your saved routes shows them newest-first with correct distance, duration, date
-- [ ] 2.5 A rider with no routes sees the empty state and its link returns to Plan
-- [ ] 2.6 A route saved then listed appears immediately, not after a delay
-- [ ] 2.7 With the network killed the error card appears and retry works once it is back
-- [ ] 2.8 A second rider on the same device sees only their own routes, with no flash of the first's
-- [ ] 2.9 Same behaviour on web as on native
+- [x] 2.4 Account → Your saved routes shows them newest-first with correct distance, duration, date
+- [x] 2.5 A rider with no routes sees the empty state and its link returns to Plan
+- [x] 2.6 A route saved then listed appears immediately, not after a delay
+- [x] 2.7 With the network killed the error card appears and retry works once it is back
+- [x] 2.8 A second rider on the same device sees only their own routes, with no flash of the first's
+- [x] 2.9 Same behaviour on web as on native
 
 ### Phase 3: Revisit screen
 

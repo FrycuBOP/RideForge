@@ -15,3 +15,26 @@ export function formatDuration(seconds: number): string {
   const minutes = totalMinutes % 60;
   return hours === 0 ? `${minutes} min` : `${hours} h ${minutes} min`;
 }
+
+/**
+ * ISO timestamp → a rider-facing saved date, e.g. `"12 Sep 2026"`.
+ *
+ * Never throws. This runs once per row of the saved-routes list, so a single unparseable value —
+ * or a runtime whose `Intl` data is missing — must degrade to one odd-looking row, not blank the
+ * whole list. Both failure modes are caught: a bad date first, then the formatter itself, which
+ * falls back to the ISO date portion.
+ */
+export function formatSavedAt(isoTimestamp: string): string {
+  const saved = new Date(isoTimestamp);
+  if (Number.isNaN(saved.getTime())) return 'Date unavailable';
+
+  try {
+    return saved.toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return saved.toISOString().slice(0, 10);
+  }
+}

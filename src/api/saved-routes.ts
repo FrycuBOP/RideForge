@@ -96,3 +96,128 @@ function isSavedRoute(value: unknown): value is SavedRoute {
   const { id, name, createdAt } = value as Partial<SavedRoute>;
   return typeof id === 'string' && typeof name === 'string' && typeof createdAt === 'string';
 }
+
+/**
+ * One row of `GET /saved-routes`, mirroring the backend's `SavedRouteSummaryDto`. Deliberately
+ * geometry-free: the server never reads that column for a list, so the whole response stays a few
+ * KB no matter how many rides a rider has saved.
+ */
+export type SavedRouteSummary = {
+  id: string;
+  name: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  /** ISO-8601, as the server wrote it. Formatted for riders by `formatSavedAt`. */
+  createdAt: string;
+};
+
+/**
+ * One saved ride in full, mirroring the backend's `SavedRouteDetailDto` — geometry included, which
+ * is what makes it drawable again (FR-010).
+ */
+export type SavedRouteDetail = {
+  id: string;
+  name: string;
+  start: GeoPoint;
+  startLabel: string | null;
+  requestedDistanceKm: number;
+  distanceMeters: number;
+  durationSeconds: number;
+  geometry: GeoPoint[];
+  createdAt: string;
+};
+
+/**
+ * The list is metadata for at most 50 rows — a few KB. A shorter budget than the save's: there is
+ * no large body to push, so anything slower than this is a dead network, not a big response.
+ */
+const LIST_TIMEOUT_MS = 10_000;
+
+/**
+ * One ride's geometry is up to ~600 KB, so the detail read gets the same budget as the save that
+ * wrote it rather than the 30s generation default — it is a transfer, not a provider call.
+ */
+const DETAIL_TIMEOUT_MS = SAVE_TIMEOUT_MS;
+
+/**
+ * List the signed-in rider's saved routes, newest first (FR-010). The server caps and orders; this
+ * only unwraps the envelope. A missing or stale token surfaces as an `http` 401.
+ */
+export async function listSavedRoutes(): Promise<SavedRouteSummary[]> {
+  const body = await request<unknown>('/saved-routes', {
+    auth: true,
+    timeoutMs: LIST_TIMEOUT_MS,
+  });
+
+  // Same guard as `saveRoute`: `request` casts without checking, so a 2xx carrying the wrong shape
+  // would otherwise reach the list screen and crash it on a missing field.
+  if (!isSavedRouteListResponse(body)) {
+    throw new ApiError('parse', 'Saved routes response did not match the expected shape');
+  }
+
+  return body.items;
+}
+
+/**
+ * Fetch one saved ride by id, geometry included, so the revisit screen can draw it. A route that
+ * does not exist *or* belongs to another rider both answer `http` 404 — the server deliberately
+ * gives one answer for both, so this layer cannot tell them apart either.
+ */
+export async function getSavedRoute(id: string): Promise<SavedRouteDetail> {
+  const body = await request<unknown>(`/saved-routes/${encodeURIComponent(id)}`, {
+    auth: true,
+    timeoutMs: DETAIL_TIMEOUT_MS,
+  });
+
+  if (!isSavedRouteDetail(body)) {
+    throw new ApiError('parse', 'Saved route response did not match the expected shape');
+  }
+
+  return body;
+}
+
+function isGeoPoint(value: unknown): value is GeoPoint {
+  if (typeof value !== 'object' || value === null) return false;
+  const { lat, lng } = value as Partial<GeoPoint>;
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+function isSavedRouteSummary(value: unknown): value is SavedRouteSummary {
+  if (typeof value !== 'object' || value === null) return false;
+  const { id, name, distanceMeters, durationSeconds, createdAt } =
+    value as Partial<SavedRouteSummary>;
+  return (
+    typeof id === 'string' &&
+    typeof name === 'string' &&
+    Number.isFinite(distanceMeters) &&
+    Number.isFinite(durationSeconds) &&
+    typeof createdAt === 'string'
+  );
+}
+
+/**
+ * The envelope check is the point of the envelope: a bare array would leave nowhere to add a
+ * `cursor` later without this guard rejecting the very response it was meant to accept.
+ */
+function isSavedRouteListResponse(value: unknown): value is { items: SavedRouteSummary[] } {
+  if (typeof value !== 'object' || value === null) return false;
+  const { items } = value as { items?: unknown };
+  return Array.isArray(items) && items.every(isSavedRouteSummary);
+}
+
+function isSavedRouteDetail(value: unknown): value is SavedRouteDetail {
+  if (typeof value !== 'object' || value === null) return false;
+  const route = value as Partial<SavedRouteDetail>;
+  return (
+    typeof route.id === 'string' &&
+    typeof route.name === 'string' &&
+    isGeoPoint(route.start) &&
+    (route.startLabel === null || typeof route.startLabel === 'string') &&
+    Number.isFinite(route.requestedDistanceKm) &&
+    Number.isFinite(route.distanceMeters) &&
+    Number.isFinite(route.durationSeconds) &&
+    Array.isArray(route.geometry) &&
+    route.geometry.every(isGeoPoint) &&
+    typeof route.createdAt === 'string'
+  );
+}
