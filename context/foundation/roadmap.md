@@ -3,7 +3,7 @@ project: RideForge
 version: 1
 status: draft
 created: 2026-08-11
-updated: 2026-09-10
+updated: 2026-09-11
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -36,7 +36,7 @@ RideForge generuje motocyklową trasę rekreacyjną z punktu startu i preferencj
 | S-03  | pace-shaping             | ustawić charakter fast/touristic wpływający na trasę             | S-01            | FR-004                            | blocked  |
 | S-04  | gpx-download             | pobrać wygenerowaną trasę jako poprawny plik GPX                 | S-01            | US-01, FR-007                     | proposed |
 | S-05  | rider-auth               | założyć konto i zalogować się                                    | F-01            | FR-008, FR-013                    | done |
-| S-06  | save-route               | zapisać wygenerowaną trasę na swoim koncie                       | S-05, S-01      | FR-009                            | proposed |
+| S-06  | save-route               | zapisać wygenerowaną trasę na swoim koncie                       | S-05, S-01      | FR-009                            | in-progress |
 | S-07  | saved-routes-list        | zobaczyć listę swoich zapisanych tras                            | S-06            | FR-010                            | proposed |
 | S-08  | poi-waypoints            | dołączyć punkty POI (kawiarnie, widoki, wsie) jako waypointy     | S-01, S-04      | FR-011                            | proposed |
 | S-09  | ride-radius-constraint   | ograniczyć obszar przejazdu maksymalnym promieniem od startu     | S-01            | FR-012                            | proposed |
@@ -172,7 +172,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Wymaga tożsamości (S-05) i wygenerowanej trasy do zapisania (S-01). Warstwa danych pojawia się dopiero tu, zgodnie z progresywnym ujawnianiem, zamiast osobnego foundation.
-- **Status:** proposed
+- **Status:** in-progress
 
 ### S-07: Lista zapisanych tras
 

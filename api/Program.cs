@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
 
 using RideForgeApi.Auth;
+using RideForgeApi.Persistence;
 using RideForgeApi.RateLimiting;
 using RideForgeApi.Routing;
 
@@ -128,6 +129,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+// Persistence (S-06): saved routes in the Supabase project's Postgres, reached through the session
+// pooler — Railway has no IPv6 route to the direct connection. Same fail-fast reasoning as above: a
+// blank connection string would boot fine and 500 every save. Registering the context opens no
+// connection; nothing touches the database until a request needs it, so generation never depends on
+// it being reachable.
+const string ConnectionStringName = "RideForge";
+
+var connectionString = builder.Configuration.GetConnectionString(ConnectionStringName);
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        $"ConnectionStrings:{ConnectionStringName} is not set (supply it via the " +
+        $"ConnectionStrings__{ConnectionStringName} environment variable, in Npgsql key-value form: " +
+        "Host=…;Port=5432;Database=postgres;Username=…;Password=…;SSL Mode=Require).");
+}
+
+builder.Services.AddDbContext<RideForgeDbContext>(options => options.UseRideForgeDatabase(connectionString));
 
 // Anonymous generation quota (S-05). Each generation is a billed provider call, so the ceiling is
 // enforced here rather than in the client, where it would be one devtools away from gone.

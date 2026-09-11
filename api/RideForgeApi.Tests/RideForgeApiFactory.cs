@@ -37,6 +37,15 @@ public class RideForgeApiFactory : WebApplicationFactory<Program>
     public const string Audience = "authenticated";
 
     /// <summary>
+    /// <c>Program.cs</c> refuses to boot without a connection string, for the same reason it refuses
+    /// a blank project URL. Like <see cref="ProjectUrl"/>, this one is never dialled: registering the
+    /// context opens no connection, and a hermetic test that accidentally reaches the database fails
+    /// loudly on an unresolvable host rather than silently touching a real one.
+    /// </summary>
+    public const string ConnectionString =
+        "Host=rideforge-tests.invalid;Port=5432;Database=rideforge;Username=rideforge;Password=unused";
+
+    /// <summary>
     /// Install identifier the mobile client stamps on every request; the anonymous generation quota
     /// partitions its counters on it.
     /// </summary>
@@ -70,6 +79,7 @@ public class RideForgeApiFactory : WebApplicationFactory<Program>
     {
         builder.UseSetting("Supabase:ProjectUrl", ProjectUrl);
         builder.UseSetting("Supabase:Audience", Audience);
+        builder.UseSetting("ConnectionStrings:RideForge", ConnectionString);
     }
 }
 
