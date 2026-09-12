@@ -1,39 +1,19 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Link } from 'expo-router';
-import MapView, { Marker, Polyline, type LatLng, type Region } from 'react-native-maps';
 
 import { RideStats } from '@/components/ride-stats';
+import { RouteMap } from '@/components/route-map';
 import { SaveRouteAction } from '@/components/save-route-action';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { getLastRoute } from '@/lib/route-result-store';
 
-/**
- * Padding kept around the fitted route so the polyline never touches the screen edge. The bottom
- * clears the overlay (stats card + Save action) so no part of the loop is drawn underneath it.
- */
-const FIT_EDGE_PADDING = { top: 80, right: 60, bottom: 280, left: 60 };
-
-/** Fallback framing before `fitToCoordinates` runs, and the only framing iOS honours on mount. */
-function boundingRegion(points: LatLng[]): Region {
-  const lats = points.map((p) => p.latitude);
-  const lngs = points.map((p) => p.longitude);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLng + maxLng) / 2,
-    // 1.4x the span leaves margin; the floor keeps a degenerate (near-zero span) route visible.
-    latitudeDelta: Math.max((maxLat - minLat) * 1.4, 0.02),
-    longitudeDelta: Math.max((maxLng - minLng) * 1.4, 0.02),
-  };
-}
+/** This overlay carries the stats card *and* the Save action, so it needs more room than most. */
+const FIT_BOTTOM_PADDING = 280;
 
 /**
  * Results screen — the end of the north-star flow: the generated loop drawn on a map with its
@@ -43,7 +23,6 @@ function boundingRegion(points: LatLng[]): Region {
  */
 export default function ResultScreen() {
   const insets = useSafeAreaInsets();
-  const mapRef = useRef<MapView | null>(null);
   // Snapshot once: the store is module-level mutable state, and the screen should keep showing the
   // route it was navigated with even if a later generation overwrites the store.
   const [ride] = useState(getLastRoute);
@@ -65,27 +44,10 @@ export default function ResultScreen() {
   }
 
   const { route } = ride;
-  const coordinates: LatLng[] = route.geometry.map(({ lat, lng }) => ({
-    latitude: lat,
-    longitude: lng,
-  }));
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={boundingRegion(coordinates)}
-        // Android throws if fitToCoordinates runs during mount — onLayout is the safe hook.
-        onLayout={() =>
-          mapRef.current?.fitToCoordinates(coordinates, {
-            edgePadding: FIT_EDGE_PADDING,
-            animated: false,
-          })
-        }>
-        <Polyline coordinates={coordinates} strokeColor="#208AEF" strokeWidth={5} />
-        <Marker coordinate={coordinates[0]} title="Start" />
-      </MapView>
+      <RouteMap geometry={route.geometry} fitBottomPadding={FIT_BOTTOM_PADDING} />
 
       <View style={[styles.overlay, { bottom: insets.bottom + Spacing.four }]}>
         <RideStats distanceMeters={route.distanceMeters} durationSeconds={route.durationSeconds} />
@@ -97,9 +59,6 @@ export default function ResultScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  map: {
     flex: 1,
   },
   overlay: {

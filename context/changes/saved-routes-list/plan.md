@@ -773,35 +773,35 @@ reload.
 
 #### Automated
 
-- [x] 2.1 Typecheck passes: `npx tsc --noEmit`
-- [x] 2.2 Lint passes: `npm run lint`
-- [x] 2.3 Backend tests still pass: `dotnet test api/RideForgeApi.slnx`
+- [x] 2.1 Typecheck passes: `npx tsc --noEmit` — 07ae28e
+- [x] 2.2 Lint passes: `npm run lint` — 07ae28e
+- [x] 2.3 Backend tests still pass: `dotnet test api/RideForgeApi.slnx` — 07ae28e
 
 #### Manual
 
-- [x] 2.4 Account → Your saved routes shows them newest-first with correct distance, duration, date
-- [x] 2.5 A rider with no routes sees the empty state and its link returns to Plan
-- [x] 2.6 A route saved then listed appears immediately, not after a delay
-- [x] 2.7 With the network killed the error card appears and retry works once it is back
-- [x] 2.8 A second rider on the same device sees only their own routes, with no flash of the first's
-- [x] 2.9 Same behaviour on web as on native
+- [x] 2.4 Account → Your saved routes shows them newest-first with correct distance, duration, date — 07ae28e
+- [x] 2.5 A rider with no routes sees the empty state and its link returns to Plan — 07ae28e
+- [x] 2.6 A route saved then listed appears immediately, not after a delay — 07ae28e
+- [x] 2.7 With the network killed the error card appears and retry works once it is back — 07ae28e
+- [x] 2.8 A second rider on the same device sees only their own routes, with no flash of the first's — 07ae28e
+- [x] 2.9 Same behaviour on web as on native — 07ae28e
 
 ### Phase 3: Revisit screen
 
 #### Automated
 
-- [ ] 3.1 Typecheck passes: `npx tsc --noEmit`
-- [ ] 3.2 Lint passes: `npm run lint`
+- [x] 3.1 Typecheck passes: `npx tsc --noEmit`
+- [x] 3.2 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 3.3 `/result` behaves exactly as before the extraction, including the map fit
-- [ ] 3.4 Tapping a list row opens that route drawn correctly with its saved stats
-- [ ] 3.5 The revisit screen shows no Save action
-- [ ] 3.6 Reloading or deep-linking `/saved-routes/{id}` loads the route
-- [ ] 3.7 An unknown route id shows the not-available copy, not a crash or a spinner
-- [ ] 3.8 Generating a new route does not change what an open revisit screen shows
-- [ ] 3.9 Both screens render on web
+- [x] 3.3 `/result` behaves exactly as before the extraction, including the map fit
+- [x] 3.4 Tapping a list row opens that route drawn correctly with its saved stats
+- [x] 3.5 The revisit screen shows no Save action
+- [x] 3.6 Reloading or deep-linking `/saved-routes/{id}` loads the route
+- [x] 3.7 An unknown route id shows the not-available copy, not a crash or a spinner
+- [x] 3.8 Generating a new route does not change what an open revisit screen shows
+- [x] 3.9 Both screens render on web
 
 ### Phase 4: Endpoint declarations out of `Program.cs`
 

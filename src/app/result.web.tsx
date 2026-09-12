@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
 
 import { RideStats } from '@/components/ride-stats';
+import { RouteMap } from '@/components/route-map';
 import { SaveRouteAction } from '@/components/save-route-action';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -12,9 +13,9 @@ import { getLastRoute } from '@/lib/route-result-store';
 
 /**
  * Web fallback for the results screen. react-native-maps has no web support — it calls
- * `codegenNativeComponent`, which react-native-web doesn't implement — so importing it in the web
- * bundle crashes the app. This sibling shows the same ride stats and points at the mobile app for
- * the map itself; the native `result.tsx` owns the real preview.
+ * `codegenNativeComponent`, which react-native-web doesn't implement — so a screen built around a
+ * full-bleed map has nothing to build around here. This sibling lays the ride out as a centred card
+ * instead; `RouteMap` resolves to its own web sibling and says where the preview lives.
  */
 export default function ResultScreenWeb() {
   const [ride] = useState(getLastRoute);
@@ -29,9 +30,7 @@ export default function ResultScreenWeb() {
               durationSeconds={ride.route.durationSeconds}
             />
             <SaveRouteAction ride={ride} />
-            <ThemedText type="small" themeColor="textSecondary" style={styles.centered}>
-              The map preview is available in the mobile app.
-            </ThemedText>
+            <RouteMap geometry={ride.route.geometry} />
           </>
         ) : (
           <>
