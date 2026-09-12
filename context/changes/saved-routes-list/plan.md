@@ -820,9 +820,9 @@ reload.
 
 #### Automated
 
-- [x] 5.1 Full suite green: `dotnet test api/RideForgeApi.slnx`, `npm run lint`, `npx tsc --noEmit`
+- [x] 5.1 Full suite green: `dotnet test api/RideForgeApi.slnx`, `npm run lint`, `npx tsc --noEmit` — 043a5b8
 
 #### Manual
 
-- [x] 5.2 test-plan §6 reads as something a contributor could follow without this plan open
-- [x] 5.3 Nothing in `change.md` contradicts what actually shipped
+- [x] 5.2 test-plan §6 reads as something a contributor could follow without this plan open — 043a5b8
+- [x] 5.3 Nothing in `change.md` contradicts what actually shipped — 043a5b8
