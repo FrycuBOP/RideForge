@@ -1,7 +1,7 @@
 ---
 change_id: saved-routes-list
 title: Saved routes list
-status: implemented
+status: impl_reviewed
 created: 2026-09-12
 updated: 2026-09-12
 archived_at: null
@@ -46,20 +46,25 @@ and nothing else.
   has one home.
 - **The 503 helper was renamed in phase 1**, as the plan allowed: `SaveUnavailable()` →
   `DatabaseUnavailable(detail)`, with `SaveFailedDetail` / `ReadFailedDetail` passed in. The mapping,
-  the status and the sanitized log are unchanged — `SavedRoutesEndpointTests` still passes untouched.
+  the status and the sanitized log are unchanged — the save suite still passed untouched (that class is
+  now `SavedRoutesSaveEndpointTests`, renamed during the implementation review).
   Phase 4 moved it to `api/Persistence/DatabaseFailures.cs`.
 - **Client timeout budgets**: list 10 s, detail 15 s. The plan said "a short budget" for the list and
   "the save path's 15 s" for the detail; these are the numbers. The detail is defined as
   `SAVE_TIMEOUT_MS` rather than a second literal, since the reason is the same ~600 KB transfer.
 - **`RouteMap` takes `fitBottomPadding` with a default** instead of requiring it at both call sites.
-  The result screen passes its existing 280 (stats card + Save action); the revisit screen takes the
-  default, which is sized for stats alone.
-- **The list screen carries one `Platform.OS === 'web'` branch** for the content container's max
-  width. Everything else about the screen is shared, so a `.web` sibling would have duplicated ~200
-  lines to change a style — the repo convention (a `.web.` file over a `Platform` branch) earns its
-  keep when a native module is involved, which here it is not.
+  The result screen passes its existing 280 (stats card + Save action). The revisit screen took the
+  default at the time of this decision; the later tab move gave it an explicit
+  `200 + BottomTabInset` instead, because the tab bar now floats over its map.
+- **The list screen branches on platform twice** rather than carrying a `.web` sibling: once for the
+  content container's padding (`Platform.select`, android vs web) and once for its max width
+  (`Platform.OS === 'web'`). The second was there from the start; the first arrived with the tab
+  move, which gave the screen the tab-screen inset convention. Everything else about the screen is
+  shared, so a `.web` sibling would have duplicated ~200 lines to change a style — the repo
+  convention (a `.web.` file over a `Platform` branch) earns its keep when a native module is
+  involved, which here it is not.
 
-### 2026-09-12 — The list became a tab, after the plan closed (supersedes plan phase 2 §5/§7)
+### 2026-09-12 — The list became a tab, after the plan closed (supersedes plan phase 2 §5/§7/§8)
 
 Asked for after phase 4 landed: move the saved-routes list into the bottom tab bar in the slot the
 scaffold's Explore screen held, visible only to a signed-in rider. The plan had deliberately kept
@@ -81,6 +86,18 @@ What shipped:
   every route, and the visible bar is built from triggers outside it. Rendering the Saved trigger
   only when signed in — the obvious version — *deregisters* the route, and a signed-out rider
   opening `/saved-routes` lands on Plan instead of the screen's own "sign in first" state.
+- **Phase 2 §8 is reversed, not just superseded.** It required `<Stack.Screen>` entries for
+  `saved-routes/index` and `saved-routes/[id]` in the root stack and stated that "the `saved-routes`
+  directory intentionally has no `_layout.tsx`". Both held after phase 2 and both were undone here:
+  the root stack now registers only `(tabs)` and `result`, and a nested
+  `(tabs)/saved-routes/_layout.tsx` is exactly what does the registering. A reader reconciling the
+  plan against disk should start here rather than assuming the entries were lost.
+- **On native, the list's signed-out branch is dead code.** A hidden `NativeTabs` tab cannot be
+  navigated to at all, so a signed-out rider cannot reach `/saved-routes` even by deep link. Plan
+  phase 2 §5 justified that branch as "reachable by deep link even though the entry point is
+  signed-in only"; that rationale now holds on **web only**, where the URL is still reachable and the
+  branch still renders. It is kept rather than deleted because a session can also expire while the
+  screen sits open.
 
 **The Android crash this cost, and the rule it leaves behind.** `hidden={session === null}` on the
 trigger crashed the app on launch with `FragmentManager is already executing transactions`

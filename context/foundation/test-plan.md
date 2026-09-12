@@ -157,7 +157,7 @@ relevant rollout phase ships; before that, it reads "TBD — see §3 Phase N."
 
 - **When**: the rule lives in the database — a constraint, a per-owner unique index, what `jsonb`
   stores. A stubbed context would fake exactly that. Everything else stays hermetic (see
-  `SavedRoutesEndpointTests`, which points at a dead port so a request that slips validation shows
+  `SavedRoutesSaveEndpointTests`, which points at a dead port so a request that slips validation shows
   up as 503, not a pass).
 - **How**: mark the test `[PostgresFact]` and take `IClassFixture<PostgresApiFactory>`. The fixture
   applies the migrations once, gives out signed-in riders via `NewRider()` and deletes their rows
