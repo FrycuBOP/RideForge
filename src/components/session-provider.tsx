@@ -2,7 +2,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useEffect, useState, type PropsWithChildren } from 'react';
 
-import { SAVED_ROUTES_KEY } from '@/lib/query-keys';
+import { ME_KEY, SAVED_ROUTES_KEY } from '@/lib/query-keys';
 import { supabase } from '@/lib/supabase';
 
 export type SessionState = {
@@ -58,7 +58,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       // Sweeping them anyway is belt and braces: it keeps one rider's rides out of memory after
       // they sign out, and it survives a future refactor that loosens the key.
       if (event === 'SIGNED_OUT') {
-        queryClient.removeQueries({ queryKey: ['me'] });
+        queryClient.removeQueries({ queryKey: [ME_KEY] });
         queryClient.removeQueries({ queryKey: [SAVED_ROUTES_KEY] });
       }
     });

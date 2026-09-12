@@ -28,37 +28,12 @@ namespace RideForgeApi.Tests;
 /// <see cref="SavedRoutesPersistenceTests"/>, because a stub would lie about every one of them.
 /// </para>
 /// </summary>
-public class SavedRoutesEndpointTests : IClassFixture<SavedRoutesEndpointTests.UnreachableDatabaseFactory>
+public class SavedRoutesSaveEndpointTests : IClassFixture<UnreachableDatabaseFactory>
 {
     private readonly UnreachableDatabaseFactory _factory;
 
-    public SavedRoutesEndpointTests(UnreachableDatabaseFactory factory) => _factory = factory;
+    public SavedRoutesSaveEndpointTests(UnreachableDatabaseFactory factory) => _factory = factory;
 
-    /// <summary>
-    /// A signed-in host whose database refuses connections on the spot (port 1 on loopback), with a
-    /// log sink so a test can see what the API wrote about the failure.
-    /// </summary>
-    public class UnreachableDatabaseFactory : AuthenticatedApiFactory
-    {
-        public const string DatabaseHost = "127.0.0.1";
-
-        /// <summary>Not a credential for anything; distinctive so a leak is unmistakable.</summary>
-        public const string DatabasePassword = "leak-canary-5b1f";
-
-        public ConcurrentQueue<string> Logs { get; } = new();
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-
-            builder.UseSetting(
-                "ConnectionStrings:RideForge",
-                $"Host={DatabaseHost};Port=1;Database=rideforge;Username=rideforge_api;Password={DatabasePassword}");
-
-            builder.ConfigureTestServices(services =>
-                services.AddSingleton<ILoggerProvider>(new CapturingLoggerProvider(Logs)));
-        }
-    }
 
     private HttpClient SignedInClient(string? subject = null)
     {
@@ -202,27 +177,5 @@ public class SavedRoutesEndpointTests : IClassFixture<SavedRoutesEndpointTests.U
         Assert.NotNull(request.Geometry);
         Assert.NotNull(request.DistanceMeters);
         Assert.NotNull(request.DurationSeconds);
-    }
-
-    /// <summary>Collects each log line, with its exception rendered in full, as the host emits it.</summary>
-    private sealed class CapturingLoggerProvider(ConcurrentQueue<string> sink) : ILoggerProvider
-    {
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(categoryName, sink);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CapturingLogger(string category, ConcurrentQueue<string> sink) : ILogger
-        {
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(
-                LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-                Func<TState, Exception?, string> formatter) =>
-                sink.Enqueue($"{logLevel} {category}: {formatter(state, exception)} {exception}");
-        }
     }
 }

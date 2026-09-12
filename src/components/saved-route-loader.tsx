@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 
 import { Link } from 'expo-router';
@@ -10,6 +10,13 @@ import { Spacing } from '@/constants/theme';
 import { useSavedRouteQuery } from '@/hooks/use-saved-route-query';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
+
+/**
+ * How long a missing route param may stay missing before the screen stops waiting. Long enough that
+ * a slow first render is never mistaken for a dead link, short enough that a dead link is not an
+ * indefinite spinner.
+ */
+const MISSING_ID_GRACE_MS = 1_000;
 
 /** Map a failed detail read to rider-facing copy (FR-005), in the list screen's shape. */
 function detailErrorMessage(error: ApiError): string {
@@ -50,6 +57,17 @@ export function SavedRouteLoader({ id, children }: SavedRouteLoaderProps) {
   const theme = useTheme();
   const { session, isRestoring } = useSession();
   const route = useSavedRouteQuery(id);
+  const hasId = id !== undefined && id.length > 0;
+  // A route param can be missing on the very first render of a deep link, and a frame of that
+  // correctly reads as loading. A param that never arrives is a different thing: the query stays
+  // disabled, react-query keeps reporting `isPending`, and this component would sit on a spinner
+  // with no error branch and no timeout. So give the param a grace period, then stop waiting.
+  const [gaveUpOnId, setGaveUpOnId] = useState(false);
+  useEffect(() => {
+    if (hasId) return;
+    const timer = setTimeout(() => setGaveUpOnId(true), MISSING_ID_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [hasId]);
 
   // Restoring the persisted session is async. Rendering either branch here would flash the
   // signed-out prompt at an already signed-in rider on every cold start.
@@ -69,6 +87,23 @@ export function SavedRouteLoader({ id, children }: SavedRouteLoaderProps) {
         </ThemedText>
         <Link href="/account">
           <ThemedText type="linkPrimary">Go to Account</ThemedText>
+        </Link>
+      </ThemedView>
+    );
+  }
+
+  // No id once mount has settled: nothing to load and nothing to retry, so say what the 404 branch
+  // says rather than spinning forever.
+  if (!hasId && gaveUpOnId) {
+    return (
+      <ThemedView style={styles.container}>
+        <ThemedView type="backgroundElement" style={styles.errorCard}>
+          <ThemedText type="small" style={styles.errorText}>
+            This route is no longer available.
+          </ThemedText>
+        </ThemedView>
+        <Link href="/saved-routes" replace>
+          <ThemedText type="linkPrimary">Back to your saved routes</ThemedText>
         </Link>
       </ThemedView>
     );

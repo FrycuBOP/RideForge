@@ -163,10 +163,13 @@ export async function listSavedRoutes(): Promise<SavedRouteSummary[]> {
  * does not exist *or* belongs to another rider both answer `http` 404 — the server deliberately
  * gives one answer for both, so this layer cannot tell them apart either.
  */
-export async function getSavedRoute(id: string): Promise<SavedRouteDetail> {
+export async function getSavedRoute(id: string, signal?: AbortSignal): Promise<SavedRouteDetail> {
   const body = await request<unknown>(`/saved-routes/${encodeURIComponent(id)}`, {
     auth: true,
     timeoutMs: DETAIL_TIMEOUT_MS,
+    // Threaded from react-query so backing out of a ride mid-load actually aborts the fetch rather
+    // than leaving ~600 KB to finish arriving for a screen nobody is looking at.
+    signal,
   });
 
   if (!isSavedRouteDetail(body)) {

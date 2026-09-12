@@ -24,12 +24,20 @@ const DEFAULT_FIT_BOTTOM_PADDING = 200;
 
 /** Fallback framing before `fitToCoordinates` runs, and the only framing iOS honours on mount. */
 function boundingRegion(points: LatLng[]): Region {
-  const lats = points.map((p) => p.latitude);
-  const lngs = points.map((p) => p.longitude);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
+  // One pass, no spread: a saved ride carries up to SavedRouteValidation.MaxGeometryPoints (20,000)
+  // points, and `Math.min(...lats)` would pass one argument per point — an engine argument limit is
+  // not somewhere a render path should be sitting. Callers guarantee a non-empty array (see the
+  // `geometry.length === 0` guard below), and the save side rejects anything under two points.
+  let minLat = points[0].latitude;
+  let maxLat = points[0].latitude;
+  let minLng = points[0].longitude;
+  let maxLng = points[0].longitude;
+  for (const p of points) {
+    if (p.latitude < minLat) minLat = p.latitude;
+    if (p.latitude > maxLat) maxLat = p.latitude;
+    if (p.longitude < minLng) minLng = p.longitude;
+    if (p.longitude > maxLng) maxLng = p.longitude;
+  }
   return {
     latitude: (minLat + maxLat) / 2,
     longitude: (minLng + maxLng) / 2,

@@ -1,5 +1,5 @@
 /**
- * Query keys for the rider's saved routes.
+ * Query keys for the authenticated surfaces of the app.
  *
  * They live here rather than beside the hooks because `SessionProvider` needs the prefix to sweep
  * the cache on sign-out, and importing a hook from the provider would close an import cycle
@@ -11,6 +11,17 @@
  * key, so there is nothing for the next rider on this device to inherit. Contrast `['me']`, which is
  * keyed by endpoint and therefore *does* depend on that sweep.
  */
+
+/**
+ * The `/me` lookup. Keyed by endpoint rather than by rider, which is exactly why the sign-out sweep
+ * has to drop it by hand — see the contrast drawn above. It lives here so the sweep and the hook
+ * cannot disagree about the spelling.
+ */
+export const ME_KEY = 'me' as const;
+
+export function meKey() {
+  return [ME_KEY] as const;
+}
 
 /** Root segment shared by every saved-routes key — what the sign-out sweep removes. */
 export const SAVED_ROUTES_KEY = 'saved-routes' as const;

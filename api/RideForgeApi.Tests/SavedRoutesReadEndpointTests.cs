@@ -16,7 +16,7 @@ namespace RideForgeApi.Tests;
 /// signed-in riders only), what a malformed id answers, what an unreachable database looks like from
 /// outside, and the exact field names the app will parse.
 /// <para>
-/// Same host trick as <see cref="SavedRoutesEndpointTests"/> — the database port refuses connections
+/// Same host trick as <see cref="SavedRoutesSaveEndpointTests"/> — the database port refuses connections
 /// — so every case here is meaningful in both directions: a request the boundary should refuse comes
 /// back 401 or 404, and one that slips past reaches the database and comes back 503. It cannot pass
 /// by accident.
@@ -27,11 +27,11 @@ namespace RideForgeApi.Tests;
 /// day a real one is configured.
 /// </para>
 /// </summary>
-public class SavedRoutesReadEndpointTests : IClassFixture<SavedRoutesEndpointTests.UnreachableDatabaseFactory>
+public class SavedRoutesReadEndpointTests : IClassFixture<UnreachableDatabaseFactory>
 {
-    private readonly SavedRoutesEndpointTests.UnreachableDatabaseFactory _factory;
+    private readonly UnreachableDatabaseFactory _factory;
 
-    public SavedRoutesReadEndpointTests(SavedRoutesEndpointTests.UnreachableDatabaseFactory factory) =>
+    public SavedRoutesReadEndpointTests(UnreachableDatabaseFactory factory) =>
         _factory = factory;
 
     /// <summary>Both reads, so every boundary case is asserted against each of them.</summary>
@@ -124,9 +124,9 @@ public class SavedRoutesReadEndpointTests : IClassFixture<SavedRoutesEndpointTes
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
 
         var body = await response.Content.ReadAsStringAsync();
-        Assert.DoesNotContain(SavedRoutesEndpointTests.UnreachableDatabaseFactory.DatabaseHost, body);
+        Assert.DoesNotContain(UnreachableDatabaseFactory.DatabaseHost, body);
         Assert.DoesNotContain("Password", body, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(SavedRoutesEndpointTests.UnreachableDatabaseFactory.DatabasePassword, body);
+        Assert.DoesNotContain(UnreachableDatabaseFactory.DatabasePassword, body);
 
         // The API did log the failure — otherwise the checks below would pass on an empty sink. The
         // read says so in its own words; a line claiming a save failed would send whoever is
@@ -134,9 +134,9 @@ public class SavedRoutesReadEndpointTests : IClassFixture<SavedRoutesEndpointTes
         Assert.Contains(_factory.Logs, line => line.Contains("Reading saved routes failed"));
 
         Assert.DoesNotContain(
-            _factory.Logs, line => line.Contains(SavedRoutesEndpointTests.UnreachableDatabaseFactory.DatabaseHost));
+            _factory.Logs, line => line.Contains(UnreachableDatabaseFactory.DatabaseHost));
         Assert.DoesNotContain(
-            _factory.Logs, line => line.Contains(SavedRoutesEndpointTests.UnreachableDatabaseFactory.DatabasePassword));
+            _factory.Logs, line => line.Contains(UnreachableDatabaseFactory.DatabasePassword));
     }
 
     [Fact]

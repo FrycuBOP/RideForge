@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { ApiError, getMe, type MeResponse } from '@/api';
+import { meKey } from '@/lib/query-keys';
 
 import { useSession } from './use-session';
 
@@ -13,7 +14,7 @@ export function useMeQuery() {
   const { session } = useSession();
 
   return useQuery<MeResponse, ApiError>({
-    queryKey: ['me'],
+    queryKey: meKey(),
     queryFn: getMe,
     enabled: session !== null,
   });

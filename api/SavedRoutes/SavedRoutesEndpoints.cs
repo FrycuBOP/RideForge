@@ -33,7 +33,7 @@ public static class SavedRoutesEndpoints
     /// asserting.
     /// </para>
     /// </summary>
-    public static IEndpointRouteBuilder MapSavedRoutes(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapSavedRouteEndpoints(this IEndpointRouteBuilder app)
     {
         // Save a generated ride to the signed-in rider's account (FR-009): 401 no/invalid token, 400 bad
         // payload, 201 saved, 200 already saved, 503 database unavailable.

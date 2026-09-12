@@ -20,7 +20,12 @@ export function useSavedRouteQuery(routeId: string | undefined) {
 
   return useQuery<SavedRouteDetail, ApiError>({
     queryKey: savedRouteKey(user?.id ?? 'signed-out', id),
-    queryFn: () => getSavedRoute(id),
+    queryFn: ({ signal }) => getSavedRoute(id, signal),
     enabled: session !== null && id.length > 0,
+    // A saved ride is immutable: the runtime role holds no UPDATE grant, so nothing can change this
+    // row once written. Re-fetching it on the global 30s staleTime would re-download ~600 KB of
+    // geometry to arrive at the same bytes. The save mutation invalidates the list key, which is the
+    // only event that can change what a rider has saved.
+    staleTime: Infinity,
   });
 }

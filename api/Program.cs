@@ -26,6 +26,17 @@ var builder = WebApplication.CreateBuilder(args);
 // signed-in rider's data, because nothing is sent automatically — no cookie, no Authorization
 // header — without the rider's own token, which that origin does not have.
 // Revisit only if cookie-based auth is ever introduced.
+// A saved route's geometry is the only large *response* this API produces: up to 20,000 coordinate
+// pairs, around 600 KB of JSON, fetched on every revisit over mobile data. A coordinate array is
+// almost all repeated digits and punctuation, so it compresses by roughly an order of magnitude.
+// Enabled for HTTPS too: the BREACH-style concern behind the default only applies when a response
+// mixes a secret with attacker-controlled input, and these bodies carry neither.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = new[] { "application/json", "application/problem+json" };
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -256,6 +267,10 @@ app.Logger.LogInformation("Route stitching provider resolved to '{Provider}'.", 
 // comment above for why the quota depends on this.
 app.UseForwardedHeaders();
 
+// Before the endpoints that produce the large bodies; after forwarded headers so nothing reordering
+// the client IP is affected.
+app.UseResponseCompression();
+
 app.UseCors();
 
 // A save carries the only large body this API accepts, and SavedRouteValidation's 20,000-point
@@ -289,6 +304,12 @@ app.UseAuthorization();
 // whether the caller is exempt.
 app.UseRateLimiter();
 
+// Endpoints are declared in two places on purpose, and this is the rule: a feature's endpoints live
+// in a route-group extension next to that feature (the Map* calls below), while a one-expression
+// endpoint that belongs to no feature stays here. /health and /me are the whole of the second
+// category — moving them would buy a file each and cost the reader the ability to see the service's
+// entire trivial surface in one place. Anything with a body worth a comment goes in a group.
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "rideforge-api" }));
 
 // The rider's identity as *this API* sees it, which is the point: it proves the token validated
@@ -300,7 +321,7 @@ app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
     email = user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("email"),
 })).RequireAuthorization();
 
-app.MapSavedRoutes();
+app.MapSavedRouteEndpoints();
 app.MapRouteEndpoints();
 
 app.Run();

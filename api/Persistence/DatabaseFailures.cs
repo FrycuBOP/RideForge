@@ -10,7 +10,7 @@ namespace RideForgeApi.Persistence;
 /// What counts as a database fault, what may be said about it in a log, and what the caller is told.
 /// One cohesive rule kept together because the three questions only make sense as a set: the
 /// sanitizing in <see cref="LogDatabaseFailure"/> is the reason <see cref="DatabaseUnavailable"/> can
-/// stay generic, and <c>SavedRoutesEndpointTests</c> asserts on that pairing.
+/// stay generic, and <c>SavedRoutesSaveEndpointTests</c> asserts on that pairing.
 /// </summary>
 public static class DatabaseFailures
 {

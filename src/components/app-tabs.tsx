@@ -35,6 +35,10 @@ export default function AppTabs() {
         A hidden tab also cannot be navigated to at all, so on native a signed-out rider cannot
         reach `/saved-routes` even by deep link. The screen keeps its signed-out branch regardless —
         on web the URL is still reachable directly.
+
+        Both awkward states were exercised on Android and neither misbehaves: signing out
+        while this tab is the focused one, and a cold-start deep link to a saved ride while
+        signed out. The guards cope; no redirect was needed.
       */}
       <NativeTabs.Trigger name="saved-routes" hidden={session === null}>
         <NativeTabs.Trigger.Label>Saved</NativeTabs.Trigger.Label>
