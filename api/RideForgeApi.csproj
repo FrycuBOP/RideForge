@@ -6,4 +6,24 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- The test project lives under api/; keep its sources out of this project's default glob. -->
+  <ItemGroup>
+    <Compile Remove="RideForgeApi.Tests/**/*.cs" />
+    <Content Remove="RideForgeApi.Tests/**/*" />
+    <None Remove="RideForgeApi.Tests/**/*" />
+    <EmbeddedResource Remove="RideForgeApi.Tests/**/*" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- Npgsql only floors EF Core at an older 10.0 patch, while the (private) Design package pulls
+         the current one into this project alone. Pinned here so it flows to the test project too
+         and both run the same EF Core. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+  </ItemGroup>
+
 </Project>

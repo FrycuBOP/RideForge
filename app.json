@@ -8,13 +8,18 @@
     "scheme": "rideforge",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.rideforge",
       "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "RideForge uses your location to set your ride's starting point."
       }
     },
     "android": {
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "package": "com.rideforge",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,11 +43,23 @@
             "imageWidth": 76
           }
         }
+      ],
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "AIzaSyDBbGuhuQ3F9A2Gh0tCwAVtLurwsHGJoJw"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6d9332e1-8061-4890-a1c2-7df70018e83a"
+      }
     }
   }
 }

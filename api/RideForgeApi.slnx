@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="RideForgeApi.csproj" />
+  <Project Path="RideForgeApi.Tests/RideForgeApi.Tests.csproj" />
+</Solution>

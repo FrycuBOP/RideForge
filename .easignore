@@ -1,0 +1,65 @@
+# EAS Build ignore. When present, EAS CLI uses this INSTEAD of .gitignore, so it
+# mirrors .gitignore and then adds dev-only paths that must not be uploaded.
+
+# --- mirror of .gitignore ---
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# .NET backend (api/)
+api/bin/
+api/obj/
+
+# --- EAS-only extra excludes (not part of the Expo mobile app) ---
+# 10x-cli dev tooling. .agents/ holds Windows directory symlinks into .claude/
+# that break EAS's archive step on Windows (EPERM: operation not permitted, symlink).
+.agents/
+.claude/
+
+# 10x planning / context docs — not shipped in the app
+context/
+
+# .NET backend — deployed separately to Railway, never part of the Expo build
+api/
+
+# editor/dev
+.vscode/

@@ -74,6 +74,11 @@ Any individual rider — regardless of bike type or country — who rides for pl
 - FR-005: Rider can trigger route generation from their inputs. Priority: must-have
   > Socrates: Counter-argument considered: "a single Generate button with no feedback is a dead end if generation is slow or fails." Resolution: kept as must-have; visible loading and error states are required companions. The 30-second generation limit (see Non-Functional Requirements) bounds the maximum wait.
 
+- FR-013: Anonymous riders are limited to 2 route generations per hour; signed-in riders have no limit. Priority: must-have
+  > Added during S-05 implementation (`rider-auth`), not from upstream discovery. Each generation is a billed third-party directions call on a publicly reachable endpoint, so an unbounded anonymous endpoint is an open tab against the project's budget. Enforced server-side (client-side would be one devtools away from gone), counted per install with the caller's IP as the fallback for requests that carry no usable install id.
+  > This does not violate the US-01 acceptance criterion "Generation completes without requiring a login": generation still needs no account, and 2/hour is above what a rider planning one ride actually uses. The limit is what gives FR-008 a reason to exist — signing in is the thing that removes it, which is the first concrete benefit an account confers.
+  > Numbers are configuration (`GenerationQuota__PermitLimit`, `GenerationQuota__WindowMinutes`), not constants, so tuning needs no code change. Counters are in-memory and single-instance for the MVP: they reset on redeploy, and the limit is looser than 2/hour during active development.
+
 - FR-006: Rider can view the generated route on a map. Priority: must-have
   > Socrates: Counter-argument considered: "a map preview adds a heavy third-party dependency before the routing even works." Resolution: kept as must-have — seeing the route before downloading is the minimum trust signal. Use the lightest viable map library (e.g. Leaflet + OpenStreetMap) to minimize dependency weight.
 
@@ -111,7 +116,7 @@ RideForge generates a motorcycle route from a rider's starting point by selectin
 
 ## Access Control
 
-Anonymous users can generate a ride and download the GPX file without creating an account — no login barrier on the core value.
+Anonymous users can generate a ride and download the GPX file without creating an account — no login barrier on the core value. Generation is rate-limited for them (FR-013), which is a ceiling on a billed call, not a login barrier: the feature is available, and signing in lifts the ceiling.
 
 Registered users (flat model — all accounts equal) can additionally save named routes and revisit past generated rides.
 

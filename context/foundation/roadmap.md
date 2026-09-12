@@ -3,7 +3,7 @@ project: RideForge
 version: 1
 status: draft
 created: 2026-08-11
-updated: 2026-08-11
+updated: 2026-09-12
 prd_version: 1
 main_goal: market-feedback
 top_blocker: time
@@ -29,15 +29,15 @@ RideForge generuje motocyklową trasę rekreacyjną z punktu startu i preferencj
 
 | ID    | Change ID                | Outcome (user can …)                                              | Prerequisites   | PRD refs                          | Status   |
 | ----- | ------------------------ | ---------------------------------------------------------------- | --------------- | --------------------------------- | -------- |
-| F-01  | mobile-backend-link      | (foundation) aplikacja Expo dogaduje się z backendem na Railway  | —               | FR-005                            | in-progress |
-| F-02  | route-stitching-adapter  | (foundation) backend zamienia waypointy w trasę trzymającą dróg  | —               | FR-005, FR-006, NFR-01            | ready    |
-| S-01  | generate-route-preview   | wygenerować trasę ze startu + długości i zobaczyć ją na mapie     | F-01, F-02      | US-01, FR-001, FR-002, FR-005, FR-006, NFR-01 | proposed |
+| F-01  | mobile-backend-link      | (foundation) aplikacja Expo dogaduje się z backendem na Railway  | —               | FR-005                            | done |
+| F-02  | route-stitching-adapter  | (foundation) backend zamienia waypointy w trasę trzymającą dróg  | —               | FR-005, FR-006, NFR-01            | done |
+| S-01  | generate-route-preview   | wygenerować trasę ze startu + długości i zobaczyć ją na mapie     | F-01, F-02      | US-01, FR-001, FR-002, FR-005, FR-006, NFR-01 | done |
 | S-02  | curviness-shaping        | ustawić poziom krętości i dostać trasę, która go respektuje      | S-01            | US-01, FR-003                     | proposed |
 | S-03  | pace-shaping             | ustawić charakter fast/touristic wpływający na trasę             | S-01            | FR-004                            | blocked  |
 | S-04  | gpx-download             | pobrać wygenerowaną trasę jako poprawny plik GPX                 | S-01            | US-01, FR-007                     | proposed |
-| S-05  | rider-auth               | założyć konto i zalogować się                                    | F-01            | FR-008                            | proposed |
-| S-06  | save-route               | zapisać wygenerowaną trasę na swoim koncie                       | S-05, S-01      | FR-009                            | proposed |
-| S-07  | saved-routes-list        | zobaczyć listę swoich zapisanych tras                            | S-06            | FR-010                            | proposed |
+| S-05  | rider-auth               | założyć konto i zalogować się                                    | F-01            | FR-008, FR-013                    | done |
+| S-06  | save-route               | zapisać wygenerowaną trasę na swoim koncie                       | S-05, S-01      | FR-009                            | done |
+| S-07  | saved-routes-list        | zobaczyć listę swoich zapisanych tras                            | S-06            | FR-010                            | done |
 | S-08  | poi-waypoints            | dołączyć punkty POI (kawiarnie, widoki, wsie) jako waypointy     | S-01, S-04      | FR-011                            | proposed |
 | S-09  | ride-radius-constraint   | ograniczyć obszar przejazdu maksymalnym promieniem od startu     | S-01            | FR-012                            | proposed |
 
@@ -76,7 +76,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Minimalna wtyczka, nie „warstwa API" — jeśli spuchnie do generycznego klienta HTTP, złamie zasadę progresywnego ujawniania; trzymać do jednego round-tripu + DTO + konwencji błędu, resztę dokłada S-01.
-- **Status:** in-progress
+- **Status:** done
 
 ### F-02: Adapter zszywania trasy (server-side)
 
@@ -88,9 +88,10 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Parallel with:** F-01
 - **Blockers:** —
 - **Unknowns:**
-  - Który dostawca directions/map-matching (GraphHopper Directions / OpenRouteService / Mapbox / self-hosted OSRM)? — Owner: user. Block: no (curviness liczymy sami, więc każde API trzymające dróg wystarczy — patrz PRD Open Question 2, rozwiązane 2026-08-11).
+  - Kształt outputu algorytmu krętości: rzadkie, uporządkowane waypointy vs gęsty ślad? — Owner: user. Block: yes (dla wyboru wzorca) — determinuje directions-z-waypointami (np. OpenRouteService) vs map-matching (OSRM/GraphHopper). Porównanie i kryterium: `context/changes/route-stitching-adapter/research-stitching.md`.
+  - Który dostawca directions/map-matching (GraphHopper Directions / OpenRouteService / Mapbox / self-hosted OSRM)? — Owner: user. Block: no (curviness liczymy sami, więc każde API trzymające dróg wystarczy — patrz PRD Open Question 2, rozwiązane 2026-08-11). Zależny od kształtu outputu algorytmu (wyżej).
 - **Risk:** Round-trip do zewnętrznego API wlicza się w limit 30 s (NFR-01); przy wielu waypointach latencja się kumuluje. Adapter musi być swappable, by zmiana dostawcy nie dotknęła algorytmu.
-- **Status:** ready
+- **Status:** done
 
 ## Slices
 
@@ -102,10 +103,12 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Prerequisites:** F-01, F-02
 - **Parallel with:** S-05
 - **Blockers:** —
+- **Decyzja (mapa):** biblioteka mapy = **`react-native-maps`** (`<Polyline>` + `fitToCoordinates` pod outcome). Odrzucono `expo-maps` (alpha, iOS 18+, brak Expo Go). Research: `context/changes/route-stitching-adapter/research-stitching.md`, pamięć `northstar-tech-decisions`.
+- **Prerequisite (techniczny):** `react-native-maps` nie działa w Expo Go → S-01 wymaga **dev buildu (EAS)**, nie Expo Go.
 - **Unknowns:**
   - Czy własny algorytm generuje waypointy tak, że po zszyciu trasa mieści się w ±20% zadanej długości (kryterium akceptacji US-01)? — Owner: user. Block: no (to rdzeń do zbudowania i zmierzenia, nie decyzja blokująca planowanie).
 - **Risk:** To najcięższy i najbardziej niepewny slice (nowatorski algorytm + limit 30 s). Sekwencjonowany pierwszy mimo wagi, bo jako north star wystawia najbardziej ryzykowne założenie na ocenę najwcześniej — zgodnie z celem `market-feedback`.
-- **Status:** proposed
+- **Status:** done
 
 ### S-02: Kształtowanie krętości (curviness)
 
@@ -150,13 +153,14 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 - **Outcome:** jeździec zakłada konto i loguje się (wprowadza minimalny scaffold auth przy pierwszym slice'ie, który go potrzebuje).
 - **Change ID:** rider-auth
-- **PRD refs:** FR-008
+- **PRD refs:** FR-008, FR-013
 - **Prerequisites:** F-01
 - **Parallel with:** S-01, S-02, S-03, S-04
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Nice-to-have (drugorzędne Kryterium sukcesu); sekwencjonowany po ścieżce koniecznej, bo `top_blocker: time` każe najpierw domknąć rdzeń generowania. Nie parkowany, bo to realny drugorzędny cel produktu.
-- **Status:** proposed
+- **Rozszerzenie zakresu (2026-09-08, na etapie planowania; wdrożone 2026-09-10):** slice obejmuje też **limit generowania dla anonimowych** — 2 trasy na godzinę, egzekwowane server-side; zalogowani bez limitu. To właśnie limit daje kontu powód istnienia. Generowanie nadal nie wymaga logowania (US-01). Wymaganie nie pochodziło z PRD — powstało na etapie planowania i zostało dopisane do `prd.md` jako **FR-013** w fazie 5. Licznik jest in-memory i jednoinstancyjny (resetuje się przy redeployu); limity są konfiguracją (`GenerationQuota__PermitLimit`, `GenerationQuota__WindowMinutes`), nie stałymi.
+- **Status:** done
 
 ### S-06: Zapis wygenerowanej trasy
 
@@ -168,7 +172,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Wymaga tożsamości (S-05) i wygenerowanej trasy do zapisania (S-01). Warstwa danych pojawia się dopiero tu, zgodnie z progresywnym ujawnianiem, zamiast osobnego foundation.
-- **Status:** proposed
+- **Status:** done
 
 ### S-07: Lista zapisanych tras
 
@@ -180,7 +184,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Konsumuje persystencję z S-06; bez czego zapisać, nie ma czego listować, stąd kolejność po S-06.
-- **Status:** proposed
+- **Status:** done
 
 ### S-08: Punkty POI jako waypointy
 
@@ -214,7 +218,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | ---------- | ------------------------ | ------------------------------------------------------- | --------------------- | ------------------------------------------------ |
 | F-01       | mobile-backend-link      | Wire Expo app to Railway backend (typed client + errors) | yes                   | Równoległy z F-02; odblokowuje north star S-01   |
 | F-02       | route-stitching-adapter  | Server-side directions/map-matching stitching adapter   | yes                   | Wybór dostawcy niezablokowany; odblokowuje S-01  |
-| S-01       | generate-route-preview   | Generate route from start + length, show on map         | no                    | Czeka na F-01 + F-02                             |
+| S-01       | generate-route-preview   | Generate route from start + length, show on map         | done                  | Zaimplementowany i zreviewowany (2026-09-08)     |
 | S-02       | curviness-shaping        | Curviness slider shapes the generated route             | no                    | Czeka na S-01                                    |
 | S-03       | pace-shaping             | Fast/touristic pace shapes the generated route          | no                    | Zablokowany na OQ1 (definicja fast/touristic)    |
 | S-04       | gpx-download             | Download generated route as valid GPX                   | no                    | Czeka na S-01; przetestować w Garmin/OsmAnd      |
@@ -240,4 +244,9 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Done
 
-(Empty on first generation — `/10x-archive` appends here when a matching change is archived.)
+- **F-01: (foundation) aplikacja Expo dosięga backendu na Railway typowanym request/response dla jednego endpointu, ze wspólną konwencją stanu ładowania i błędu (per FR-005), zweryfikowaną na `GET /health`.** — Archived 2026-08-16 → `context/archive/2026-08-11-mobile-backend-link/`. Lesson: —.
+- **F-02: (foundation) backend zamienia uporządkowaną listę waypointów w trasę trzymającą się dróg (polilinia + dystans + czas) przez zewnętrzne commodity directions/map-matching API, z kluczem trzymanym server-side.** — Archived 2026-08-16 → `context/archive/2026-08-16-route-stitching-adapter/`. Lesson: —.
+- **S-01: jeździec wpisuje lokalizację startu i długość przejazdu, klika Generuj i widzi trasę narysowaną na mapie, wychodzącą z podanego startu.** — Archived 2026-09-08 → `context/archive/2026-08-24-s-01/`. Lesson: —.
+- **S-05: jeździec zakłada konto i loguje się (wprowadza minimalny scaffold auth przy pierwszym slice'ie, który go potrzebuje).** — Archived 2026-09-10 → `context/archive/2026-09-08-rider-auth/`. Lesson: —.
+- **S-06: zalogowany jeździec zapisuje wygenerowaną trasę na swoim koncie (ten slice wprowadza persystencję — pierwszy moment, w którym jest potrzebna).** — Archived 2026-09-11 → `context/archive/2026-09-11-save-route/`. Lesson: —.
+- **S-07: zalogowany jeździec widzi listę swoich zapisanych tras i może wrócić do wcześniejszego przejazdu.** — Archived 2026-09-12 → `context/archive/2026-09-12-saved-routes-list/`. Lesson: —.
