@@ -172,6 +172,48 @@ relevant rollout phase ships; before that, it reads "TBD — see §3 Phase N."
   only caught by a deployed save.
 - **Reference test**: `api/RideForgeApi.Tests/SavedRoutesPersistenceTests.cs`.
 
+#### 6.1.2 Testing an ownership rule when the Postgres suite is skipped
+
+- **When**: a read is scoped to one owner and the database will not enforce that for you. The RLS
+  policy on `rideforge.saved_routes` is `FOR ALL TO rideforge_api USING (true)` — an exposure guard
+  that keeps the table off the anon key and scopes nothing per rider — so the `owner_id` predicate in
+  the query *is* the whole guard between two riders. §6.1.1's `[PostgresFact]` is the natural test for
+  it, and it reports as skipped on every machine anyone actually runs. A guard nothing executes is a
+  comment.
+- **How**:
+  1. **Extract the rule into query shaping.** Put the filter, ordering, cap and projection in pure
+     extension methods over `IQueryable<T>` (`api/SavedRoutes/SavedRouteQueries.cs`), not inline in
+     the handler. Against EF they compose into SQL; against `List<T>.AsQueryable()` the same
+     expression trees run as LINQ-to-objects. That single property is what makes everything below
+     possible, and it is the reason the rule does not live in the endpoint.
+  2. **Execute the rule, hermetically.** Build a `List<T>` holding *two* owners' rows interleaved,
+     call `.AsQueryable()`, assert. No host, no fixture, plain `[Fact]`s. Cover: only the caller's
+     rows come back (the IDOR regression); the ordering including its tiebreak; the cap keeps the
+     newest rather than an arbitrary page; an owner with no rows; and the by-id filter refusing
+     another owner's id. Reference: `SavedRouteQueriesTests.cs`.
+  3. **Pin where the rule runs, with `ToQueryString()`.** LINQ-to-objects proves the expression is
+     correct and says nothing about *where* it executes — a `ToListAsync()` followed by a C#
+     `Where`/`Take`/`Select` passes every test in step 2 while reading every owner's rows into the
+     API's memory. `ToQueryString()` compiles the query to SQL **without opening a connection**, so it
+     runs under `RideForgeApiFactory`'s deliberately unroutable connection string. Assert that the
+     owner predicate reaches a `WHERE` and arrives as a `@`-parameter rather than an inlined literal,
+     that the cap is a `LIMIT`, and — the claim only generated SQL can make — that a heavy column is
+     **not** named. Reference: `SavedRouteQuerySqlTests.cs`.
+  4. **Assert an absence against its own presence.** `Assert.DoesNotContain("geometry", sql)` proves
+     nothing if no query in the file would ever contain it. The detail-path test asserts the column
+     *is* named, which is what makes the list's absence meaningful. Do that for every "column X never
+     leaves the database" claim.
+  5. **Keep the real-database version anyway.** Write the end-to-end cross-owner read as
+     `[PostgresFact]` per §6.1.1 and expect it skipped. It is what would catch a translation failure
+     or a missing grant the day someone points `RIDEFORGE_TEST_DB` at a disposable Postgres; today it
+     records intent. Steps 2–4 are what guard the rule.
+- **Assert on substrings, not statements**: column names and keywords only. A legitimate query
+  rewrite by a future EF or Npgsql must not fail the test for the wrong reason.
+- **Gate**: required — unlike §6.1.1 these run on every `dotnet test`. Watch the skipped count: it
+  should rise only by the `[PostgresFact]` cases you added.
+- **Reference tests**: `api/RideForgeApi.Tests/SavedRouteQueriesTests.cs`,
+  `api/RideForgeApi.Tests/SavedRouteQuerySqlTests.cs`.
+
 ### 6.2 Adding a contract / decode test (ORS boundary)
 
 - TBD — see §3 Phase 1 (ORS drift + `[lng,lat]` axis decode, Risks #2/#3).
@@ -220,7 +262,10 @@ Refresh (`/10x-test-plan --refresh`) when:
 
 - a new top-3 risk surfaces from the roadmap or archive (e.g. auth/saved
   routes S-05/S-06 landing introduces an IDOR surface — a rider reading
-  another rider's saved routes — not yet in this map),
+  another rider's saved routes. S-07 (`saved-routes-list`) gave that surface
+  executable hermetic coverage — the owner predicate is pinned by
+  `SavedRouteQueriesTests` and `SavedRouteQuerySqlTests`, see §6.1.2 — but the
+  risk itself is still absent from §2's map),
 - a recommended tool's `checked:` date is older than three months,
 - the project's tech stack changes (new framework, new test runner),
 - §7 negative-space no longer matches what the team believes.

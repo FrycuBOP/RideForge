@@ -807,22 +807,22 @@ reload.
 
 #### Automated
 
-- [x] 4.1 Backend builds with no new warnings: `dotnet build api/RideForgeApi.slnx`
-- [x] 4.2 Full backend suite green with unchanged pass and skip counts: `dotnet test api/RideForgeApi.slnx`
-- [x] 4.3 No test file was edited: `git diff --stat api/RideForgeApi.Tests/` is empty
+- [x] 4.1 Backend builds with no new warnings: `dotnet build api/RideForgeApi.slnx` — 6595d22
+- [x] 4.2 Full backend suite green with unchanged pass and skip counts: `dotnet test api/RideForgeApi.slnx` — 6595d22
+- [x] 4.3 No test file was edited: `git diff --stat api/RideForgeApi.Tests/` is empty — 6595d22
 
 #### Manual
 
-- [x] 4.4 `Program.cs` reads as configure → pipeline → map → run, with no endpoint body in it
-- [x] 4.5 Every comment explaining why an endpoint behaves as it does is still attached to that endpoint
+- [x] 4.4 `Program.cs` reads as configure → pipeline → map → run, with no endpoint body in it — 6595d22
+- [x] 4.5 Every comment explaining why an endpoint behaves as it does is still attached to that endpoint — 6595d22
 
 ### Phase 5: Cookbook + close-out
 
 #### Automated
 
-- [ ] 5.1 Full suite green: `dotnet test api/RideForgeApi.slnx`, `npm run lint`, `npx tsc --noEmit`
+- [x] 5.1 Full suite green: `dotnet test api/RideForgeApi.slnx`, `npm run lint`, `npx tsc --noEmit`
 
 #### Manual
 
-- [ ] 5.2 test-plan §6 reads as something a contributor could follow without this plan open
-- [ ] 5.3 Nothing in `change.md` contradicts what actually shipped
+- [x] 5.2 test-plan §6 reads as something a contributor could follow without this plan open
+- [x] 5.3 Nothing in `change.md` contradicts what actually shipped
