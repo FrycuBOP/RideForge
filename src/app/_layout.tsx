@@ -27,9 +27,6 @@ export default function RootLayout() {
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="result" options={{ title: 'Your ride' }} />
-            {/* Pushed over the tabs like `result`, which is why `saved-routes/` has no _layout. */}
-            <Stack.Screen name="saved-routes/index" options={{ title: 'Saved routes' }} />
-            <Stack.Screen name="saved-routes/[id]" options={{ title: 'Saved ride' }} />
           </Stack>
         </ThemeProvider>
       </SessionProvider>

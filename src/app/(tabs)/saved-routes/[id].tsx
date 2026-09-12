@@ -8,11 +8,15 @@ import { RouteMap } from '@/components/route-map';
 import { SavedRouteLoader } from '@/components/saved-route-loader';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { BottomTabInset, Spacing } from '@/constants/theme';
 import { formatSavedAt } from '@/lib/format-ride';
 
-/** The overlay here carries only the saved-at line and the stats card — no Save action. */
-const FIT_BOTTOM_PADDING = 200;
+/**
+ * The overlay here carries only the saved-at line and the stats card — no Save action. The tab bar
+ * floats over this screen (the detail lives inside the Saved tab), so the fitted route has to clear
+ * that too or the bottom of the loop hides behind it.
+ */
+const FIT_BOTTOM_PADDING = 200 + BottomTabInset;
 
 /**
  * One saved ride, revisited (FR-010). It owns its data — fetched by id, not read from the result
@@ -31,7 +35,7 @@ export default function SavedRouteScreen() {
           <Stack.Screen options={{ title: route.name }} />
           <RouteMap geometry={route.geometry} fitBottomPadding={FIT_BOTTOM_PADDING} />
 
-          <View style={[styles.overlay, { bottom: insets.bottom + Spacing.four }]}>
+          <View style={[styles.overlay, { bottom: insets.bottom + BottomTabInset + Spacing.three }]}>
             <ThemedView type="backgroundElement" style={styles.savedAtCard}>
               <ThemedText type="small" themeColor="textSecondary">
                 Saved {formatSavedAt(route.createdAt)}

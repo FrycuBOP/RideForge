@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -6,7 +7,7 @@ import { Link } from 'expo-router';
 import { ApiError, type SavedRouteSummary } from '@/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useSavedRoutesQuery } from '@/hooks/use-saved-routes-query';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
@@ -59,31 +60,65 @@ function SavedRouteRow({ route }: { route: SavedRouteSummary }) {
 }
 
 /**
+ * Every state that is not a list of rides: centred copy, held clear of the tab bar. As a tab screen
+ * the bar floats over the content, so the inset cannot be left to the safe area alone.
+ */
+function CenteredState({ bottomInset, children }: { bottomInset: number; children: ReactNode }) {
+  return (
+    <ThemedView style={[styles.centeredContainer, { paddingBottom: bottomInset }]}>
+      {children}
+    </ThemedView>
+  );
+}
+
+/**
  * The rider's saved rides, newest first (FR-010) — the second half of the save loop S-06 opened.
  *
- * A stack route pushed over the tabs, like `/result`, reached from Account. It is deep-linkable, so
- * every state a signed-out or failing rider can land in is handled here rather than assumed away by
- * the entry point.
+ * A tab, in the slot the scaffold's Explore screen used to hold. The tab itself is shown only to a
+ * rider holding a session (see `app-tabs.tsx`), but every signed-out and failing state is still
+ * handled here: on web the URL is reachable directly, and a session can expire while the screen sits
+ * open. The screen renders its own title because its stack (`saved-routes/_layout.tsx`) gives it no
+ * header — the detail pushed over it is the screen that needs one.
  */
 export default function SavedRoutesScreen() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
+  const safeAreaInsets = useSafeAreaInsets();
   const { session, isRestoring } = useSession();
   const routes = useSavedRoutesQuery();
+
+  // The tab-screen inset convention, as `index.tsx` and `account.tsx` apply it: iOS takes it through
+  // `contentInset`, Android and web through content padding.
+  const insets = {
+    ...safeAreaInsets,
+    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
+  };
+
+  const contentPlatformStyle = Platform.select({
+    android: {
+      paddingTop: insets.top,
+      paddingLeft: insets.left,
+      paddingRight: insets.right,
+      paddingBottom: insets.bottom,
+    },
+    web: {
+      paddingTop: Spacing.six,
+      paddingBottom: Spacing.four,
+    },
+  });
 
   // Restoring the persisted session is async. Rendering either branch here would flash the
   // signed-out prompt at an already signed-in rider on every cold start.
   if (isRestoring) {
     return (
-      <ThemedView style={styles.centeredContainer}>
+      <CenteredState bottomInset={insets.bottom}>
         <ActivityIndicator color={theme.textSecondary} />
-      </ThemedView>
+      </CenteredState>
     );
   }
 
   if (session === null) {
     return (
-      <ThemedView style={styles.centeredContainer}>
+      <CenteredState bottomInset={insets.bottom}>
         <ThemedText type="subtitle" style={styles.centeredText}>
           Sign in first
         </ThemedText>
@@ -93,21 +128,21 @@ export default function SavedRoutesScreen() {
         <Link href="/account">
           <ThemedText type="linkPrimary">Go to Account</ThemedText>
         </Link>
-      </ThemedView>
+      </CenteredState>
     );
   }
 
   if (routes.isPending) {
     return (
-      <ThemedView style={styles.centeredContainer}>
+      <CenteredState bottomInset={insets.bottom}>
         <ActivityIndicator color={theme.textSecondary} />
-      </ThemedView>
+      </CenteredState>
     );
   }
 
   if (routes.isError) {
     return (
-      <ThemedView style={styles.centeredContainer}>
+      <CenteredState bottomInset={insets.bottom}>
         <ThemedView type="backgroundElement" style={styles.errorCard}>
           <ThemedText type="small" style={styles.errorText}>
             {listErrorMessage(routes.error)}
@@ -128,13 +163,13 @@ export default function SavedRoutesScreen() {
             {routes.isFetching ? 'Retrying…' : 'Tap to try again'}
           </ThemedText>
         </Pressable>
-      </ThemedView>
+      </CenteredState>
     );
   }
 
   if (routes.data.length === 0) {
     return (
-      <ThemedView style={styles.centeredContainer}>
+      <CenteredState bottomInset={insets.bottom}>
         <ThemedText type="subtitle" style={styles.centeredText}>
           No saved routes yet
         </ThemedText>
@@ -144,7 +179,7 @@ export default function SavedRoutesScreen() {
         <Link href="/">
           <ThemedText type="linkPrimary">Plan a ride</ThemedText>
         </Link>
-      </ThemedView>
+      </CenteredState>
     );
   }
 
@@ -156,9 +191,17 @@ export default function SavedRoutesScreen() {
       data={routes.data}
       keyExtractor={(route) => route.id}
       renderItem={({ item }) => <SavedRouteRow route={item} />}
+      // Scrolls with the rows rather than sitting above them, matching the other tab screens, whose
+      // titles live inside the scroll content.
+      ListHeaderComponent={
+        <ThemedView style={styles.header}>
+          <ThemedText type="title">Saved routes</ThemedText>
+        </ThemedView>
+      }
+      contentInset={insets}
       contentContainerStyle={[
         styles.listContent,
-        { paddingBottom: insets.bottom + Spacing.four },
+        contentPlatformStyle,
         Platform.OS === 'web' && styles.listContentWeb,
       ]}
     />
@@ -171,14 +214,18 @@ const styles = StyleSheet.create({
   },
   listContent: {
     gap: Spacing.two,
-    padding: Spacing.three,
+    paddingHorizontal: Spacing.three,
   },
-  // The tabs are hidden on this route, so the web list needs its own width ceiling to match the
-  // tabbed screens rather than stretching across a desktop window.
+  // The web tab list spans the window, so the rows need their own width ceiling to line up with the
+  // other tabbed screens rather than stretching across a desktop display.
   listContentWeb: {
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
+  },
+  header: {
+    paddingTop: Spacing.five,
+    paddingBottom: Spacing.two,
   },
   row: {
     borderRadius: Spacing.three,
