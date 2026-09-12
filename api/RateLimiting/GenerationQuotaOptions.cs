@@ -14,6 +14,13 @@ public sealed class GenerationQuotaOptions
 {
     public const string SectionName = "GenerationQuota";
 
+    /// <summary>
+    /// Name of the rate-limiting policy this quota configures. It lives on the options rather than
+    /// in <c>Program.cs</c> because the endpoints that opt into it are declared elsewhere, and a
+    /// policy name that does not match the registered one fails at request time, not at build.
+    /// </summary>
+    public const string PolicyName = "generation-quota";
+
     /// <summary>Generations an anonymous rider may make per window. Signed-in riders are exempt.</summary>
     public int PermitLimit { get; set; } = 2;
 

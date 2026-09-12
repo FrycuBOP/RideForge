@@ -790,31 +790,31 @@ reload.
 
 #### Automated
 
-- [x] 3.1 Typecheck passes: `npx tsc --noEmit`
-- [x] 3.2 Lint passes: `npm run lint`
+- [x] 3.1 Typecheck passes: `npx tsc --noEmit` — 0bf2e18
+- [x] 3.2 Lint passes: `npm run lint` — 0bf2e18
 
 #### Manual
 
-- [x] 3.3 `/result` behaves exactly as before the extraction, including the map fit
-- [x] 3.4 Tapping a list row opens that route drawn correctly with its saved stats
-- [x] 3.5 The revisit screen shows no Save action
-- [x] 3.6 Reloading or deep-linking `/saved-routes/{id}` loads the route
-- [x] 3.7 An unknown route id shows the not-available copy, not a crash or a spinner
-- [x] 3.8 Generating a new route does not change what an open revisit screen shows
-- [x] 3.9 Both screens render on web
+- [x] 3.3 `/result` behaves exactly as before the extraction, including the map fit — 0bf2e18
+- [x] 3.4 Tapping a list row opens that route drawn correctly with its saved stats — 0bf2e18
+- [x] 3.5 The revisit screen shows no Save action — 0bf2e18
+- [x] 3.6 Reloading or deep-linking `/saved-routes/{id}` loads the route — 0bf2e18
+- [x] 3.7 An unknown route id shows the not-available copy, not a crash or a spinner — 0bf2e18
+- [x] 3.8 Generating a new route does not change what an open revisit screen shows — 0bf2e18
+- [x] 3.9 Both screens render on web — 0bf2e18
 
 ### Phase 4: Endpoint declarations out of `Program.cs`
 
 #### Automated
 
-- [ ] 4.1 Backend builds with no new warnings: `dotnet build api/RideForgeApi.slnx`
-- [ ] 4.2 Full backend suite green with unchanged pass and skip counts: `dotnet test api/RideForgeApi.slnx`
-- [ ] 4.3 No test file was edited: `git diff --stat api/RideForgeApi.Tests/` is empty
+- [x] 4.1 Backend builds with no new warnings: `dotnet build api/RideForgeApi.slnx`
+- [x] 4.2 Full backend suite green with unchanged pass and skip counts: `dotnet test api/RideForgeApi.slnx`
+- [x] 4.3 No test file was edited: `git diff --stat api/RideForgeApi.Tests/` is empty
 
 #### Manual
 
-- [ ] 4.4 `Program.cs` reads as configure → pipeline → map → run, with no endpoint body in it
-- [ ] 4.5 Every comment explaining why an endpoint behaves as it does is still attached to that endpoint
+- [x] 4.4 `Program.cs` reads as configure → pipeline → map → run, with no endpoint body in it
+- [x] 4.5 Every comment explaining why an endpoint behaves as it does is still attached to that endpoint
 
 ### Phase 5: Cookbook + close-out
 

@@ -1,4 +1,3 @@
-using System.Net.Sockets;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 
@@ -10,8 +9,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
-
-using Npgsql;
 
 using RideForgeApi.Auth;
 using RideForgeApi.Persistence;
@@ -156,9 +153,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
 // EF's own failure events are demoted below the default log level, because they log the raw
 // exception: a connection failure reads "Failed to connect to <host>:<port>" and ConnectionError
 // names the server outright. No connection detail may reach a log line, so the save endpoint logs
-// its own sanitized warning instead (see LogDatabaseFailure). CommandError also fires on every
-// repeat save — a double tap is a normal outcome there, not an error worth a stack trace.
-// Program.cs only: `dotnet ef` builds its context through the design-time factory and keeps
+// its own sanitized warning instead (see DatabaseFailures.LogDatabaseFailure). CommandError also
+// fires on every repeat save — a double tap is a normal outcome there, not an error worth a stack
+// trace. Program.cs only: `dotnet ef` builds its context through the design-time factory and keeps
 // EF's full error output, which is exactly where a human debugging a migration wants it.
 builder.Services.AddDbContext<RideForgeDbContext>(options => options
     .UseRideForgeDatabase(connectionString)
@@ -182,9 +179,6 @@ builder.Services.AddHostedService<PendingMigrationsCheck>();
 // GetNoLimiter counts nothing, so every signed-in rider sharing it costs one dictionary entry
 // rather than one per rider.
 const string AuthenticatedPartitionKey = "authenticated";
-
-// Name of the rate-limiting policy applied to POST /route/generate.
-const string GenerationQuotaPolicy = "generation-quota";
 
 // Client-supplied install identifier; written by src/api/client.ts.
 const string InstallHeaderName = "X-RideForge-Install";
@@ -216,7 +210,7 @@ builder.Services.AddRateLimiter(limiter =>
 {
     limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    limiter.AddPolicy(GenerationQuotaPolicy, httpContext =>
+    limiter.AddPolicy(GenerationQuotaOptions.PolicyName, httpContext =>
     {
         // The whole point of the quota: signing in removes it. This is why the limiter has to run
         // AFTER UseAuthentication — before it, HttpContext.User is unpopulated, every caller looks
@@ -242,14 +236,6 @@ builder.Services.AddRateLimiter(limiter =>
 
 /// <summary>Body ceiling for a save — see the middleware that applies it.</summary>
 const long SaveRequestSizeLimitBytes = 2_000_000;
-
-// What a database failure is called, in the log line and in the body the rider sees. Split by
-// direction: a read that fails has not failed to save anything, and a log line claiming otherwise
-// sends whoever is diagnosing it to the wrong endpoint.
-const string SaveOperation = "Saving a route";
-const string ReadOperation = "Reading saved routes";
-const string SaveFailedDetail = "The route could not be saved right now. Try again shortly.";
-const string ReadFailedDetail = "Your saved routes could not be loaded right now. Try again shortly.";
 
 var app = builder.Build();
 
@@ -310,243 +296,12 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "rideforge
 // cannot verify, is a 401 from the middleware — the handler only ever runs for a valid one.
 app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
 {
-    id = SubjectOf(user),
+    id = RiderIdentity.SubjectOf(user),
     email = user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("email"),
 })).RequireAuthorization();
 
-// Save a generated ride to the signed-in rider's account (FR-009): 401 no/invalid token, 400 bad
-// payload, 201 saved, 200 already saved, 503 database unavailable.
-//
-// The owner is the verified token's sub and nothing else — the request DTO has no owner field to
-// bind. A repeat save of the same clientRouteId (a double tap, a retry after a lost response) hands
-// back the rider's existing row. That is decided by the per-owner unique index, not a pre-check:
-// select-then-insert would leave a race between two concurrent taps. First write wins; a repeat
-// carrying a different payload changes nothing. No rate limit: a save is one bounded insert, not a
-// billed provider call.
-app.MapPost("/saved-routes", async (
-    SaveRouteRequestDto dto,
-    ClaimsPrincipal user,
-    RideForgeDbContext db,
-    ILogger<Program> logger,
-    CancellationToken ct) =>
-{
-    var error = SavedRouteValidation.Validate(dto);
-    if (error is not null)
-    {
-        return Results.Problem(detail: error, statusCode: StatusCodes.Status400BadRequest);
-    }
-
-    // Supabase subjects are always UUIDs. A validly signed token whose sub is not one identifies
-    // nobody this API can store a route for.
-    if (!Guid.TryParse(SubjectOf(user), out var ownerId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var startLabel = string.IsNullOrWhiteSpace(dto.StartLabel) ? null : dto.StartLabel.Trim();
-    var route = new SavedRoute
-    {
-        OwnerId = ownerId,
-        ClientRouteId = dto.ClientRouteId!.Value,
-        Name = SavedRouteNaming.Derive(startLabel, dto.DistanceMeters!.Value),
-        StartLat = dto.Start!.Lat,
-        StartLng = dto.Start.Lng,
-        StartLabel = startLabel,
-        RequestedDistanceKm = dto.RequestedDistanceKm!.Value,
-        DistanceMeters = dto.DistanceMeters.Value,
-        DurationSeconds = dto.DurationSeconds!.Value,
-        Geometry = [.. dto.Geometry!],
-    };
-
-    try
-    {
-        try
-        {
-            db.SavedRoutes.Add(route);
-            await db.SaveChangesAsync(ct);
-            return Results.Created(
-                (string?)null, new SavedRouteResponseDto(route.Id, route.Name, route.CreatedAt));
-        }
-        catch (DbUpdateException ex) when (IsRepeatSave(ex))
-        {
-            // The failed entity is still tracked as Added, so this context must not SaveChanges
-            // again. A no-tracking read is all the repeat path needs.
-            var existing = await db.SavedRoutes.AsNoTracking()
-                .Where(r => r.OwnerId == ownerId && r.ClientRouteId == route.ClientRouteId)
-                .Select(r => new SavedRouteResponseDto(r.Id, r.Name, r.CreatedAt))
-                .SingleOrDefaultAsync(ct);
-
-            if (existing is not null)
-            {
-                return Results.Ok(existing);
-            }
-
-            // The index said the row exists and the read found none. Nothing deletes saved routes
-            // yet, so this is not expected; answer as unavailable rather than invent a result.
-            logger.LogWarning("Repeat save hit the per-owner unique index but no existing row was found.");
-            return DatabaseUnavailable(SaveFailedDetail);
-        }
-    }
-    catch (Exception ex) when (IsDatabaseFailure(ex))
-    {
-        LogDatabaseFailure(logger, ex, SaveOperation);
-        return DatabaseUnavailable(SaveFailedDetail);
-    }
-}).RequireAuthorization();
-
-// The signed-in rider's saved rides, newest first (FR-010): 401 no/invalid token, 200 with the
-// envelope (an empty items array for a rider with none — having saved nothing is not a missing
-// resource), 503 database unavailable.
-//
-// Whose routes these are is decided by the token's sub and nothing else. That is not belt-and-braces
-// here: the RLS policy on the table is USING (true), so SavedRouteQueries' owner predicate is the
-// only thing between two riders. Capped and geometry-free — see SavedRouteListLimits.MaxItems and
-// SavedRouteSummaryDto. No rate limit, matching the save: this is one bounded indexed read.
-app.MapGet("/saved-routes", async (
-    ClaimsPrincipal user,
-    RideForgeDbContext db,
-    ILogger<Program> logger,
-    CancellationToken ct) =>
-{
-    if (!Guid.TryParse(SubjectOf(user), out var ownerId))
-    {
-        return Results.Unauthorized();
-    }
-
-    try
-    {
-        var items = await db.SavedRoutes.AsNoTracking()
-            .SummariesOwnedBy(ownerId, SavedRouteListLimits.MaxItems)
-            .ToListAsync(ct);
-
-        return Results.Ok(new SavedRouteListResponseDto(items));
-    }
-    catch (Exception ex) when (IsDatabaseFailure(ex))
-    {
-        LogDatabaseFailure(logger, ex, ReadOperation);
-        return DatabaseUnavailable(ReadFailedDetail);
-    }
-}).RequireAuthorization();
-
-// One saved ride, geometry included, so the app can draw it again (FR-010): 401 no/invalid token,
-// 404 unknown, 200 with the ride, 503 database unavailable.
-//
-// A route owned by another rider answers 404 — the same answer as one that does not exist, and
-// deliberately so. A 403 would confirm the id names a real route, turning this endpoint into a probe
-// for other riders' ids. The :guid constraint disposes of a malformed id as a 404 before the handler
-// runs.
-app.MapGet("/saved-routes/{id:guid}", async (
-    Guid id,
-    ClaimsPrincipal user,
-    RideForgeDbContext db,
-    ILogger<Program> logger,
-    CancellationToken ct) =>
-{
-    if (!Guid.TryParse(SubjectOf(user), out var ownerId))
-    {
-        return Results.Unauthorized();
-    }
-
-    try
-    {
-        var route = await db.SavedRoutes.AsNoTracking()
-            .OwnedRoute(ownerId, id)
-            .SingleOrDefaultAsync(ct);
-
-        return route is null
-            ? Results.NotFound()
-            : Results.Ok(new SavedRouteDetailDto(
-                route.Id,
-                route.Name,
-                new Coord(route.StartLat, route.StartLng),
-                route.StartLabel,
-                route.RequestedDistanceKm,
-                route.DistanceMeters,
-                route.DurationSeconds,
-                route.Geometry,
-                route.CreatedAt));
-    }
-    catch (Exception ex) when (IsDatabaseFailure(ex))
-    {
-        LogDatabaseFailure(logger, ex, ReadOperation);
-        return DatabaseUnavailable(ReadFailedDetail);
-    }
-}).RequireAuthorization();
-
-// Stitch an ordered waypoint list into a road-following route. Failure classes map to
-// distinct HTTP statuses so the mobile client (which reads only the status code, not the
-// body) can tell them apart: 400 bad input, 422 no route, 502 provider error, 504 timeout.
-//
-// Rate-limited under the same policy as /route/generate, and deliberately sharing one allowance
-// rather than getting its own: this endpoint makes the identical billed provider call, and the
-// cost argument that justifies the generation quota applies to it verbatim. No shipped client
-// calls it, so a shared budget costs real riders nothing and leaves no unmetered path open.
-app.MapPost("/route/stitch", async (StitchRequestDto dto, IRouteStitcher stitcher, CancellationToken ct) =>
-{
-    var error = RouteValidation.Validate(dto);
-    if (error is not null)
-    {
-        return Results.Problem(detail: error, statusCode: StatusCodes.Status400BadRequest);
-    }
-
-    try
-    {
-        var route = await stitcher.StitchAsync(new RouteRequest(dto.Waypoints!), ct);
-        return Results.Ok(new StitchResponseDto(route.Geometry, route.DistanceMeters, route.DurationSeconds));
-    }
-    catch (RouteStitchException ex)
-    {
-        var status = ex.Kind switch
-        {
-            StitchFailure.NoRoute => StatusCodes.Status422UnprocessableEntity,
-            StitchFailure.Timeout => StatusCodes.Status504GatewayTimeout,
-            _ => StatusCodes.Status502BadGateway,
-        };
-        return Results.Problem(detail: ex.Message, statusCode: status);
-    }
-}).RequireRateLimiting(GenerationQuotaPolicy);
-
-// Generate a loop route from a start point + requested distance, then stitch it into a
-// road-following route. RideForge's own (curviness-agnostic for S-01) waypoint generator feeds
-// the same stitcher, so the success body matches /route/stitch and the failure→status mapping
-// is identical: 400 bad input, 422 no route, 502 provider error, 504 timeout.
-app.MapPost("/route/generate", async (GenerateRequestDto dto, IRouteStitcher stitcher, CancellationToken ct) =>
-{
-    var error = RouteValidation.Validate(dto);
-    if (error is not null)
-    {
-        return Results.Problem(detail: error, statusCode: StatusCodes.Status400BadRequest);
-    }
-
-    var waypoints = RouteGenerator.GenerateLoop(dto.Start!, dto.DistanceKm!.Value);
-
-    // Re-validate the generated geometry, not just the request: the generator projects on a plane, so
-    // a start the input check accepts could still place a waypoint outside the legal domain. Catching
-    // it here yields a 400 instead of an opaque provider 502.
-    var geometryError = RouteValidation.Validate(new StitchRequestDto(waypoints));
-    if (geometryError is not null)
-    {
-        return Results.Problem(
-            detail: $"Generated route is not routable: {geometryError}",
-            statusCode: StatusCodes.Status400BadRequest);
-    }
-
-    try
-    {
-        var route = await stitcher.StitchAsync(new RouteRequest(waypoints), ct);
-        return Results.Ok(new StitchResponseDto(route.Geometry, route.DistanceMeters, route.DurationSeconds));
-    }
-    catch (RouteStitchException ex)
-    {
-        var status = ex.Kind switch
-        {
-            StitchFailure.NoRoute => StatusCodes.Status422UnprocessableEntity,
-            StitchFailure.Timeout => StatusCodes.Status504GatewayTimeout,
-            _ => StatusCodes.Status502BadGateway,
-        };
-        return Results.Problem(detail: ex.Message, statusCode: status);
-    }
-}).RequireRateLimiting(GenerationQuotaPolicy);
+app.MapSavedRoutes();
+app.MapRouteEndpoints();
 
 app.Run();
 
@@ -587,87 +342,6 @@ static string AnonymousPartitionKey(HttpContext context)
 }
 
 /// <summary>
-/// The rider's id as the verified token states it. Read under both names because inbound claim
-/// mapping may or may not have renamed <c>sub</c> to <see cref="ClaimTypes.NameIdentifier"/>.
-/// </summary>
-static string? SubjectOf(ClaimsPrincipal user) =>
-    user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
-
-/// <summary>
-/// A repeat save: the insert collided with the per-owner unique index. Matched by constraint name,
-/// so any other unique violation is not mistaken for one and handed someone's existing row.
-/// </summary>
-static bool IsRepeatSave(DbUpdateException ex) =>
-    ex.InnerException is PostgresException
-    {
-        SqlState: PostgresErrorCodes.UniqueViolation,
-        ConstraintName: RideForgeDbContext.OwnerClientRouteIndex,
-    };
-
-/// <summary>
-/// Anything the database layer threw. Npgsql's non-retrying execution strategy wraps transient
-/// failures (a refused or dropped connection) in an <see cref="InvalidOperationException"/>, and
-/// EF wraps command failures in a <see cref="DbUpdateException"/>, so the whole chain is searched.
-/// </summary>
-static bool IsDatabaseFailure(Exception ex) =>
-    ExceptionChain(ex).Any(e => e is NpgsqlException or DbUpdateException);
-
-static IEnumerable<Exception> ExceptionChain(Exception ex)
-{
-    for (Exception? e = ex; e is not null; e = e.InnerException)
-    {
-        yield return e;
-    }
-}
-
-/// <summary>
-/// Logs a database failure without the exception object. Npgsql's messages carry the host and port
-/// ("Failed to connect to …"), and no connection detail may reach a log line. What is kept is enough
-/// to diagnose: the exception types, the socket error, and — for a server-side refusal — the
-/// SQLSTATE and the server's own message (a missing grant or RLS policy reads 42501 here).
-/// </summary>
-static void LogDatabaseFailure(ILogger logger, Exception ex, string operation)
-{
-    var chain = string.Join(" > ", ExceptionChain(ex).Select(e =>
-        e is SocketException socket ? $"{nameof(SocketException)}({socket.SocketErrorCode})" : e.GetType().Name));
-    var server = ExceptionChain(ex).OfType<PostgresException>().FirstOrDefault();
-    var serverMessage = server is null ? "none"
-        : MayLogServerMessage(server.SqlState) ? server.MessageText
-        : "withheld";
-
-    logger.LogWarning(
-        "{Operation} failed in the database: {ExceptionChain}; SQLSTATE {SqlState}: {ServerMessage}",
-        operation, chain, server?.SqlState ?? "none", serverMessage);
-}
-
-/// <summary>
-/// Whether a server-side failure's own message may be logged. The allowed codes describe the
-/// <em>statement</em> — a violated constraint, a missing grant or policy, a table an unapplied
-/// migration has not created yet — and naming them is the whole point of logging at all. Every other
-/// code echoes the connection identity back instead: 28P01 reads
-/// <c>password authentication failed for user "rideforge_api.&lt;project-ref&gt;"</c> and 3D000 names
-/// the database, so a password rotated in Supabase but not on Railway would write the pooler
-/// username and the project ref into the deploy log on every save. For those, only the SQLSTATE is
-/// kept — enough to look the cause up, with nothing of the connection in it.
-/// </summary>
-static bool MayLogServerMessage(string sqlState) => sqlState is
-    PostgresErrorCodes.UniqueViolation or
-    PostgresErrorCodes.CheckViolation or
-    PostgresErrorCodes.NotNullViolation or
-    PostgresErrorCodes.StringDataRightTruncation or
-    PostgresErrorCodes.InsufficientPrivilege or
-    PostgresErrorCodes.UndefinedTable or
-    PostgresErrorCodes.UndefinedColumn;
-
-/// <summary>
-/// A generic 503: the body says nothing about where or what the database is. The <em>detail</em> is
-/// the caller's, because "could not be saved" is nonsense on a read — the status mapping is what all
-/// three endpoints share, not the copy.
-/// </summary>
-static IResult DatabaseUnavailable(string detail) =>
-    Results.Problem(detail: detail, statusCode: StatusCodes.Status503ServiceUnavailable);
-
-/// <summary>
 /// Reports once, at startup, whether the database is missing migrations this build expects — the
 /// symptom of a pre-deploy step that did not run. Runs in the background so a slow or unreachable
 /// database never delays the API coming up, and applies nothing: the deploy pipeline owns migrating.
@@ -694,8 +368,8 @@ internal sealed class PendingMigrationsCheck(
         catch (Exception ex)
         {
             // Never the exception itself: Npgsql's message names the host, and no connection detail
-            // may reach a log line (see LogDatabaseFailure). An unreachable database is not this
-            // check's problem to report — a save that needs it will say so itself.
+            // may reach a log line (see DatabaseFailures.LogDatabaseFailure). An unreachable database
+            // is not this check's problem to report — a save that needs it will say so itself.
             logger.LogWarning(
                 "Could not check for pending migrations at startup ({Error}).", ex.GetType().Name);
         }
